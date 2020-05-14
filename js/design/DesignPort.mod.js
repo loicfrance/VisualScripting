@@ -1,3 +1,4 @@
+import {MouseButton} from "../../../jsLibs_Modules/utils/input.mjs";
 import {FbpPort, FbpPassivePort, FbpPacketPort} from "../FBP/fbp.mod.js";
 import {editorListener, validateVarName} from "./designUtils.mod.js";
 import {DesignConnection} from "./DesignConnection.mod.js";
@@ -20,6 +21,7 @@ const nameEditorListenerSym = Symbol("port name editor listener");
 const valueEditorListenerSym = Symbol("port value editor listener");
 const portSym = Symbol("FBP port");
 const connectionsSym = Symbol("design connections");
+const bulletListenerSym = Symbol("bullet mouse listener");
 
 class DesignPort {
 
@@ -78,6 +80,13 @@ class DesignPort {
             this.process.updateConnections();
         }
     });
+
+    [bulletListenerSym] = (function(evt) {
+        if (MouseButton.getEventSource(evt) === MouseButton.LEFT) {
+            evt.preventDefault();
+            this.process.board.onPortBulletMouseEvent(this, evt);
+        }
+    }).bind(this);
 //######################################################################################################################
 //#                                                    CONSTRUCTOR                                                     #
 //######################################################################################################################
@@ -99,10 +108,10 @@ class DesignPort {
         this.nameElmt.addEventListener('dblclick', this[nameEditorListenerSym]);
 
         this.bulletElmt.style.borderColor = this.type.color;
-        this.bulletElmt.addEventListener('mousedown', (evt)=> {
-            evt.preventDefault();
-            this.process.board.onPortBulletClick(this, evt);
-        });
+        this.bulletElmt.addEventListener('mousedown', this[bulletListenerSym]);
+        this.bulletElmt.addEventListener('mouseup', this[bulletListenerSym]);
+        this.bulletElmt.addEventListener('mouseenter', this[bulletListenerSym]);
+        this.bulletElmt.addEventListener('mouseout', this[bulletListenerSym]);
 
         if(this.passive) {
             this.htmlElmt.setAttribute('passive', '');

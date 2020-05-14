@@ -57,6 +57,7 @@ class DesignProcess extends FbpProcess {
             },
             onStop: (evt)=> {
                 evt.stopPropagation();
+                this.position.set(this.position.mul(0.1).roundedVec().mul(10));
                 if(selectedBefore) this.board.onObjectClick(this, evt);
             }
         }));

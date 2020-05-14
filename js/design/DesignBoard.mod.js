@@ -8,24 +8,23 @@ const zoomSym = Symbol("zoom");
 const centerSym = Symbol("center");
 
 class DesignBoard {
+    processes = [];
+    connectionsManager = new ConnectionsManager();
+    globalDiv;
+    processDiv;
+    /** @type {*[]} */
+    selected = [];
+    /** @type {ConnectionCreator|undefined} */
+    connectionCreator = undefined;
+
     /**
      * @constructor
      * @param {HTMLDivElement} div
      */
     constructor(div) {
-        this.processes = [];
         this.globalDiv = div;
         this.processDiv = div.querySelector('.processes');
-        this.connectionsManager = new ConnectionsManager();
         this.globalDiv.appendChild(this.connectionsManager.elmt);
-        /**
-         * @type {*[]}
-         */
-        this.selected = [];
-        /**
-         * @type {ConnectionCreator|undefined}
-         */
-        this.connectionCreator = undefined;
         this.center = Vec2.ZERO;
         this.zoom = 1;
         this.viewPort = new DesignViewPort(div,
@@ -39,13 +38,18 @@ class DesignBoard {
                     this.connectionsManager.update(zoom, visibleRect);
                 }
             });
-        this.currentAction = null;
-        this.globalDiv.addEventListener('keydown',
+        window.addEventListener('keydown',
             /** @param {KeyboardEvent} evt */
             (evt)=> {
-            if(evt.isComposing) return; // skip event if typing
+            if(evt.isComposing || evt.target.isContentEditable) return; // skip event if typing
             switch(evt.code) {
-                case 'Escape' : this.clearSelection(); break;
+                case 'Escape' :
+                    this.clearSelection();
+                    if(this.connectionCreator) {
+                        this.connectionCreator.destroy();
+                        this.connectionCreator = undefined;
+                    }
+                    break;
             }
         });
         {
@@ -175,51 +179,30 @@ class DesignBoard {
         return out;
     }
 
-    onPortBulletHover(port, evt) {
-        if(this.connectionCreator) {
-            if(this.connectionCreator.beginPort.canConnect(port)) {
-                //TODO highlight connectionCreator to notify available connection
-            }
-            else {
-                //TODO highlight connectionCreator to notify unavailable connection
-            }
+    /**
+     * @param {DesignPort} port
+     * @param {MouseEvent} evt
+     */
+    onPortBulletMouseEvent(port, evt) {
+        switch(evt.type) {
+            case 'mouseenter' :
+                if(this.connectionCreator)
+                    this.connectionCreator.onPortHover(port);
+                break;
+            case 'mouseout' :
+                if(this.connectionCreator)
+                    this.connectionCreator.onPortHover(null);
+                break;
+            case 'mousedown' :
+                if(this.connectionCreator)
+                    this.connectionCreator = this.connectionCreator.onPortClick(port, evt);
+                else if(!port.connectionFull)
+                    this.connectionCreator = new ConnectionCreator(this, port);
+                break;
+            case 'mouseup' :
+                if(this.connectionCreator)
+                    this.connectionCreator = this.connectionCreator.onPortClick(port, evt);
         }
-    }
-    onPortBulletClick(port, evt) {
-        if(!port.connectionFull) {
-            if(this.connectionCreator && this.connectionCreator.beginPort !== port) {
-                if(this.connectionCreator.beginPort.canConnect(port)) {
-                    this.connectionCreator.beginPort.connect(port);
-                    if(!evt.shiftKey) {
-                        this.connectionCreator.destroy();
-                        this.connectionCreator = undefined;
-                    }
-                }
-            } else if(this.connectionCreator === undefined) {
-                this.connectionCreator = new ConnectionCreator(this, port);
-            }
-        }
-        //TODO rebuild ports connection
-        /*
-        if(evt.shift) {
-            const idx = this.selected.indexOf(port);
-            if(idx >= 0) {
-                this.selected.splice(idx, 1);
-                port.selected = false;
-            } else {
-                this.selected.push(port);
-                port.selected = true;
-            }
-        } else {
-            if(this.selected.length > 0) {
-                this.selected.forEach(p=> {if(p.canConnect(port)) p.connect(port); p.selected = false;});
-                this.selected = [];
-            } else {
-                this.selected = [port];
-                port.selected = true;
-            }
-        }
-        */
     }
 
     addProcess(process) {

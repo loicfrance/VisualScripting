@@ -43,6 +43,8 @@ function getPath(from, to, rect) {
 
 const connSym = Symbol();
 
+const magnetSym = Symbol("attached to a port");
+
 class ConnectionCreator {
     path = templatePath.cloneNode(true);
     /**
@@ -51,6 +53,8 @@ class ConnectionCreator {
     beginPort;
     [startPosSym] = undefined;
     [endPosSym] = undefined;
+    /** @type {boolean} */
+    [magnetSym] = false;
 
     /**
      *
@@ -63,14 +67,48 @@ class ConnectionCreator {
         this.path.style.pointerEvents = 'none';
         this.path.style.strokeDasharray = "15, 15";
         this.path.style.strokeDashoffset = '50%';
+        this.path.style.opacity = "0.7";
         this[port1.input ? endPosSym : startPosSym] = port1.position.clone();
         this[port1.input ? startPosSym : endPosSym] = port1.position.clone();
         board.connectionsManager.showConnection(this);
     }
     update(mousePos) {
-        this[this.beginPort.input ? startPosSym : endPosSym].set(mousePos);
+        if(this[magnetSym] === false) {
+            this[this.beginPort.input ? startPosSym : endPosSym].set(mousePos);
+            this.path.setAttribute('d', getPath(this[startPosSym], this[endPosSym]));
+        }
+    }
 
-        this.path.setAttribute('d', getPath(this[startPosSym], this[endPosSym]));
+    /**
+     * @param {DesignPort} port
+     */
+    onPortHover(port) {
+        if(port) {
+            this.update(port.position);
+            this[magnetSym] = true;
+            if(this.beginPort.canConnect(port) && !port.connectionFull) {
+                this.path.style.strokeDasharray = "20, 10";
+                this.path.style.opacity = "1";
+            } else {
+                this.path.style.strokeDasharray = "10, 20";
+                this.path.style.opacity = "0.3";
+            }
+        } else {
+            this[magnetSym] = false;
+            this.path.style.strokeDasharray = "15, 15";
+            this.path.style.opacity = "0.7";
+        }
+    }
+
+    onPortClick(port, evt) {
+        if(this.beginPort !== port && !port.connectionFull && this.beginPort.canConnect(port)) {
+            this.beginPort.connect(port);
+            if(!evt.shiftKey) {
+                this.destroy();
+                return undefined;
+            }
+        }
+        return this;
     }
 
     destroy() {
