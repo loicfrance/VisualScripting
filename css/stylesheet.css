@@ -1,0 +1,100 @@
+@import "process.css";
+@import "sidepanel.css";
+
+html, body {
+    margin: 0;
+    padding: 0;
+    height: 100%;
+    width: 100%;
+    /*overflow: hidden;*/
+}
+.board {
+    display: block;
+    position: relative;
+    overflow: hidden;
+    margin : auto;
+    padding : 0;
+    height: 100%;
+    background-color: #2b2b2b;
+    background-image:
+            linear-gradient(#FFF4 1px, transparent 1px),
+            linear-gradient(90deg, #FFF4 1px, transparent 1px),
+            linear-gradient(#FFF1 1px, transparent 1px),
+            linear-gradient(90deg, #FFF1 1px, transparent 1px);
+    background-size: 100px 100px, 100px 100px, 20px 20px, 20px 20px;
+    background-position:-1px -1px, -1px -1px, -1px -1px, -1px -1px;
+    z-index: 0;
+}
+.top-panel {
+    background: #2b2b2b;
+    margin: 0;
+    position: absolute;
+    top: 0;
+    left: 0;
+    padding: 0 5px;
+}
+.top-panel .menu-button {
+    background: #2b2b2b;
+    border: none;
+    height: 24pt;
+    width: auto;
+    margin: 0;
+    padding: 0;
+    outline: none;
+}
+.top-panel .menu-button:hover {
+    background-color: #3c3f41;
+}
+.processes {
+    display: block;
+    position: absolute;
+    width: 0;
+    height: 0;
+    top: 0;
+    left: 0;
+    z-index: 0;
+}
+/******************************************************************************
+*                                 CONNECTIONS                                 *
+******************************************************************************/
+.connections {
+    width: 100%;
+    height: 100%;
+    z-index: 1;
+    pointer-events: none;
+}
+/*
+.connections > defs > marker#marker-connection {
+    viewBox: '0 0 2 2';
+    refX: '1';
+    refY: '1';
+    markerWidth: '3';
+    markerHeight: '3';
+}
+*/
+.connection {
+    stroke-width: 5;
+    fill: transparent;
+    pointer-events: all;
+}
+.connection:hover {
+    stroke-width: 8;
+}
+* {
+    scrollbar-color: #FFFFFF4E transparent;
+    scrollbar-width: thin;
+}
+::-webkit-scrollbar {
+    width: 3mm;
+    height: 3mm;
+}
+::-webkit-scrollbar-track {
+    background: transparent;
+}
+::-webkit-scrollbar-thumb {
+    background: #FFFFFF4E;
+    border-radius: 100vh;
+}
+::-webkit-scrollbar-thumb:hover {
+    background: #FFFFFF5E;
+}

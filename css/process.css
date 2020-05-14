@@ -1,0 +1,231 @@
+
+
+.processes {
+    --process-title-font-size: 25px;
+    --process-title-height: 30px;
+    --process-border-radius: 10px;
+    --process-border-width: 1px;
+    --process-port-height: 30px;
+    --process-port-name-font-size: 22px;
+    --process-port-value-font-size: 20px;
+    --process-port-interval: 40px;
+    --process-port-bullet-height: 15px;
+    --process-port-bullet-border-width: 3px;
+}
+
+.process {
+    font-size: var(--process-port-name-font-size);
+    position: absolute;
+    border-width: var(--process-border-width);
+    border-radius: var(--process-border-radius);
+    border-style: solid;
+    box-sizing: border-box;
+    background: #3c3f41;
+    width: fit-content;
+    height: fit-content;
+    display: grid;
+    grid-template:
+            "title title title" min-content
+            "in op out" min-content
+            "details details details" min-content;
+    transform-origin: 50% 0;
+    z-index: 2;
+    transform: translate(-50%, 0);
+    cursor: grab;
+    font-family: "Droid Sans Mono", sans-serif;
+}
+.process:hover {
+    box-shadow: 0 0 10px black;
+}
+.process *[contentEditable=true] {
+    cursor: auto;
+}
+.process[selected]:before {
+    content: '';
+    z-index: -1;
+    position: absolute;
+    left: -10px;
+    top: -10px;
+    right: -10px;
+    bottom: -10px;
+    background: transparent;
+    border-radius: inherit;
+    border: 2px solid #FFF8;
+    pointer-events: none;
+}
+.process[hide-name] {
+    margin-top: 10px;
+    margin-bottom: 10px;
+}
+/******************************************************************************
+*                                    TITLE                                    *
+******************************************************************************/
+.process .title {
+    font-size: var(--process-title-font-size);
+    min-height: var(--process-title-height);
+    height: fit-content;
+    grid-area: title;
+    text-align: center;
+    padding: 0 2px var(--process-border-width) 2px;
+    margin:
+            calc(var(--process-border-width) * (-1))
+            calc(var(--process-border-width) * (-1))
+            0
+            calc(var(--process-border-width) * (-1));
+
+    border-top-left-radius: inherit;
+    border-top-right-radius: inherit;
+    user-select: none;
+    outline: none;
+}
+.process .title:focus {
+    user-select: unset;
+}
+/*
+div.process .title:not([contenteditable=true]) {
+    cursor: grab;
+}
+*/
+.process .invalid {
+    text-decoration: wavy underline;
+}
+
+.process .details {
+    grid-area: details;
+    min-width: 100%;
+    margin: 0 0.2em;
+    height: fit-content;
+}
+.process[hide-name] .title {
+    display: none;
+    user-focus: none;
+}
+/******************************************************************************
+*                                 PORT LISTS                                  *
+******************************************************************************/
+div.process .ports {
+    font-family: Consolas, monospace;
+    font-stretch: condensed;
+    display: inline-block;
+    margin: calc(var(--process-border-width) * (-1)) 0;
+    padding: 0;
+    background: transparent;
+    width: fit-content;
+    height: fit-content;
+    justify-content: space-evenly;
+    list-style: none;
+}
+
+div.process .ports.input {
+    grid-area: in;
+    text-align: left;
+    justify-self: left;
+}
+div.process .ports.output {
+    grid-area: out;
+    text-align: right;
+    justify-self: right;
+}
+
+div.process .operation {
+    grid-area: op;
+    text-align: center;
+    justify-self: center;
+    align-self: center;
+}
+div.process .operation:not(:empty) {
+    margin: 0.3em;
+}
+div.process .operation:empty {
+    min-width: 0.2em;
+}
+/******************************************************************************
+*                                    PORTS                                    *
+******************************************************************************/
+div.process .port {
+    display: flex;
+    position: relative;
+    padding: 0;
+    min-height: var(--process-port-height);
+    height: var(--process-port-height); /*TODO is this really necessary ? can we achieve 30px default height with fit-content*/
+    list-style: none;
+    outline:none;
+    margin: calc((var(--process-port-interval) - var(--process-port-height)) / 2) 0; /* total height: 40px */
+}
+div.process .port:not(:first-child) {
+    margin-top: calc(var(--process-port-interval) - var(--process-port-height));
+}
+/*
+div.process > .ports.input > .port { left:0; }
+div.process > .ports.output > .port { right:0; }
+*/
+div.process .port .name {
+    font-size: var(--process-port-name-font-size);
+    box-sizing: border-box;
+    border-radius: 100vh;
+    padding: 0 0.5em;
+    outline:none;
+}
+div.process .port .name:focus {
+    background: #0005;
+    color: #FFFD;
+}
+
+div.process .port[hide-name] .name {
+    display: none;
+    user-focus: none;
+}
+/******************************************************************************
+*                                PORT BULLETS                                 *
+******************************************************************************/
+div.process .port .bullet {
+    cursor: pointer;
+    width: var(--process-port-bullet-height);
+    height: var(--process-port-bullet-height);;
+    position: absolute;
+    border-radius: 100vh;
+    border: solid var(--process-port-bullet-border-width) gray;
+    box-sizing: border-box;
+    background: white;
+    bottom: calc(50% - var(--process-port-bullet-height) / 2);
+}
+div.process .port[passive] .bullet {
+    background: black;
+}
+div.process .port .bullet:hover {
+    transform: scale(1.2);
+}
+div.process .input .port .bullet {
+    right: calc(100% - var(--process-port-bullet-height) / 2 + var(--process-border-width));
+}
+div.process .output .port .bullet {
+    left : calc(100% - var(--process-port-bullet-height) / 2);
+}
+div.process .port[selected] .bullet {
+    box-shadow: 0 0 0.25em 0.1em white;
+}
+
+/******************************************************************************
+*                                 PORT VALUE                                  *
+******************************************************************************/
+.process .port[display-value] .name::after {
+    content: ':'
+}
+.process .port .value {
+    font-size: var(--process-port-value-font-size);
+    border-radius: 100vh;
+    min-width: 3em;
+    padding: calc((var(--process-port-height) - var(--process-port-value-font-size)) / 2) 0.5em;
+    background: #0005;
+    color: #FFF8;
+    display: none;
+    outline:none;
+}
+.process .port[display-value] .value,
+.process .port .value[contenteditable=true] {
+    display: block;
+}
+.process .input .port .value[contenteditable=true] ~ .bullet {
+    display: none;
+}
+.process .input .port
