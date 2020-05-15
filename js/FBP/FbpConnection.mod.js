@@ -110,7 +110,8 @@ class FbpPacketConnection extends FbpConnection {
      */
     set endPort(value) {
         if(value !== this[startPortSym] && value.input && value instanceof FbpPacketPort) {
-            this.cancelRead();
+            if(this[queueSym])
+                this.cancelRead();
             super.endPort = value;
         } else if(!(value instanceof FbpPacketPort)) {
             throw new Error("packet connections can only connect packet ports");
