@@ -1,4 +1,4 @@
-import {Vec2, Rect, Circle} from "../../../jsLibs_Modules/geometry2d/geometry2d.mjs";
+import {Vec2, Rect, Circle} from "../../../jsLibs_Modules/geometry2d/geometry2d.mod.js";
 import DesignViewPort from "./DesignCameraManager.mod.js";
 import {ConnectionCreator, ConnectionsManager} from "./DesignConnection.mod.js";
 import {DesignProcess} from "./DesignProcess.mod.js";

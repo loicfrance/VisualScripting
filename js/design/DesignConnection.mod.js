@@ -1,4 +1,4 @@
-import {Vec2, Rect} from "../../../jsLibs_Modules/geometry2d/geometry2d.mjs";
+import {Vec2, Rect} from "../../../jsLibs_Modules/geometry2d/geometry2d.mod.js";
 import {FbpConnection, FbpPacketConnection, FbpPassiveConnection} from "../FBP/fbp.mod.js";
 
 const startPosSym = Symbol();

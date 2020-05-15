@@ -1,6 +1,6 @@
-import {StandardViewer} from "../../../jsLibs_Modules/game/viewers.mjs";
-import {InputManager, MouseButton, MouseEvents} from "../../../jsLibs_Modules/utils/input.mjs";
-import {Vec2, Rect} from "../../../jsLibs_Modules/geometry2d/geometry2d.mjs";
+import {StandardViewer} from "../../../jsLibs_Modules/game/viewers.mod.js";
+import {InputManager, MouseButton, MouseEvents} from "../../../jsLibs_Modules/utils/input.mod.js";
+import {Vec2, Rect} from "../../../jsLibs_Modules/geometry2d/geometry2d.mod.js";
 import {dragListener} from "./designUtils.mod.js";
 
 

@@ -1,4 +1,4 @@
-import AsyncQueue from "../../../jsLibs_Modules/utils/AsyncQueue.mjs";
+import AsyncQueue from "../../../jsLibs_Modules/utils/AsyncQueue.mod.js";
 import {FbpPacketPort, FbpPassivePort} from "./FbpPort.mod.js";
 
 const startPortSym = Symbol("startPort");
@@ -109,14 +109,12 @@ class FbpPacketConnection extends FbpConnection {
      * @type {FbpPort} value
      */
     set endPort(value) {
-        if(value !== this[startPortSym] && value.input)
-        this.cancelRead();
-        super.endPort = value;
-    }
-    set endPort(port) {
-        if(!(port instanceof FbpPacketPort))
+        if(value !== this[startPortSym] && value.input && value instanceof FbpPacketPort) {
+            this.cancelRead();
+            super.endPort = value;
+        } else if(!(value instanceof FbpPacketPort)) {
             throw new Error("packet connections can only connect packet ports");
-        super.endPort = port;
+        }
     }
     get endPort() { return super.endPort; }
 

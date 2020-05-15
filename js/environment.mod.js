@@ -1,7 +1,7 @@
 
 import DesignBoard from "./design/DesignBoard.mod.js";
 import {UserConstantDesignProcess, UserPacketLauncherDesignProcess, Operator, OperationDesignProcess, ScriptDesignProcess} from "./design/premadeProcesses.mod.js";
-import {Vec2} from "../../jsLibs_Modules/geometry2d/geometry2d.mjs";
+import {Vec2} from "../../jsLibs_Modules/geometry2d/geometry2d.mod.js";
 import {FbpPortDirection, FbpPacketPort} from "./FBP/fbp.mod.js";
 import SidePanel from "./SidePanel.mod.js";
 import {DesignPort, PortValueVisibility} from "./design/DesignPort.mod.js";

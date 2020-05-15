@@ -1,5 +1,5 @@
-import {MouseButton} from "../../../jsLibs_Modules/utils/input.mjs";
-import {Vec2} from "../../../jsLibs_Modules/geometry2d/Vec2.mjs";
+import {MouseButton} from "../../../jsLibs_Modules/utils/input.mod.js";
+import {Vec2} from "../../../jsLibs_Modules/geometry2d/Vec2.mod.js";
 
 /**
  * @param onEditStart

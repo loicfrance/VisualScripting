@@ -1,6 +1,6 @@
 import FbpType from "../FBP/FbpType.mod.js";
-import {hashCode, PRNG} from "../../../jsLibs_Modules/utils/tools.mjs";
-import {HSVtoRGB} from "../../../jsLibs_Modules/utils/colors.mjs";
+import {hashCode, PRNG} from "../../../jsLibs_Modules/utils/tools.mod.js";
+import {HSVtoRGB} from "../../../jsLibs_Modules/utils/colors.mod.js";
 
 const defaultValueSym = Symbol();
 

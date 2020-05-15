@@ -1,8 +1,8 @@
-import {Vec2, Rect} from "../../../jsLibs_Modules/geometry2d/geometry2d.mjs";
+import {Vec2, Rect} from "../../../jsLibs_Modules/geometry2d/geometry2d.mod.js";
 import {FbpPacketPort, FbpPassivePort, FbpProcess, FbpPortDirection as PORT_DIR} from "../FBP/fbp.mod.js";
-import {hexToRGBA, luminance} from "../../../jsLibs_Modules/utils/colors.mjs";
+import {hexToRGBA, luminance} from "../../../jsLibs_Modules/utils/colors.mod.js";
 import {editorListener, validateVarName, dragListener} from "./designUtils.mod.js";
-import {MouseButton} from "../../../jsLibs_Modules/utils/input.mjs";
+import {MouseButton} from "../../../jsLibs_Modules/utils/input.mod.js";
 import {DesignPort, PortValueVisibility} from "./DesignPort.mod.js";
 import {DesignType, typesTable} from "./DesignType.mod.js";
 

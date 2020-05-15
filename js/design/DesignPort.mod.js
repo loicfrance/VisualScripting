@@ -1,9 +1,9 @@
-import {MouseButton} from "../../../jsLibs_Modules/utils/input.mjs";
+import {MouseButton} from "../../../jsLibs_Modules/utils/input.mod.js";
 import {FbpPort, FbpPassivePort, FbpPacketPort} from "../FBP/fbp.mod.js";
 import {editorListener, validateVarName} from "./designUtils.mod.js";
 import {DesignConnection} from "./DesignConnection.mod.js";
 import {typesTable, DesignType} from "./DesignType.mod.js";
-import {Vec2} from "../../../jsLibs_Modules/geometry2d/Vec2.mjs";
+import {Vec2} from "../../../jsLibs_Modules/geometry2d/Vec2.mod.js";
 
 
 const portTemplate = document.querySelector('#process-template').content.querySelector('.port');

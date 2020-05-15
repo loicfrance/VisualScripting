@@ -2,7 +2,7 @@ import {DesignPort, PortValueVisibility} from "./DesignPort.mod.js";
 import {FbpPassivePort, FbpPacketPort, FbpPortDirection as PORT_DIR} from "../FBP/FbpPort.mod.js";
 import {typesTable} from "./DesignType.mod.js";
 import DesignProcess from "./DesignProcess.mod.js";
-import Vec2 from "../../../jsLibs_Modules/geometry2d/Vec2.mjs"
+import Vec2 from "../../../jsLibs_Modules/geometry2d/Vec2.mod.js"
 import {FbpPortDirection} from "../FBP/FbpPort.mod.js";
 
 class UserConstantDesignProcess extends DesignProcess {

@@ -1,5 +1,4 @@
 import {dragListener} from "./design/designUtils.mod.js";
-import {MouseButton} from "../../jsLibs_Modules/utils/input.mjs";
 
 class SidePanel {
     constructor(div) {

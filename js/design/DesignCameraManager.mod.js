@@ -1,6 +1,6 @@
 import {dragListener} from "./designUtils.mod.js";
-import {MouseButton} from "../../../jsLibs_Modules/utils/input.mjs";
-import {Vec2, Rect} from "../../../jsLibs_Modules/geometry2d/geometry2d.mjs";
+import {MouseButton} from "../../../jsLibs_Modules/utils/input.mod.js";
+import {Vec2, Rect} from "../../../jsLibs_Modules/geometry2d/geometry2d.mod.js";
 
 
 const uiElementsSym = Symbol();
