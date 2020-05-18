@@ -67,7 +67,7 @@ class Operator {
     out_types;
     /** @type {string|function(nb_in:number):string} */
     descriptor;
-    /** @type {function(...*):(*|[])} */
+    /** @type {function(*|...*):(*|[])} */
     operation;
 
     /**

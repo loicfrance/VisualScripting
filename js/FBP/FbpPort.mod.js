@@ -12,12 +12,14 @@ const nameSym = Symbol("name");
 const typeSym = Symbol("type");
 const directionSym = Symbol("direction");
 const connectionsSym = Symbol("connections");
+const createConnectionSym = Symbol("create a connection");
 const defaultValueSym = Symbol("default value");
 const processSym = Symbol("process");
 const valueSym = Symbol("value");
 const runningSym = Symbol("listening on input connections");
 const onPacketSym = Symbol("onPacket");
 const listenerSym = Symbol("input listener");
+const onConnectionAddedSym = Symbol("connection added to port");
 
 async function inputConnectionListener(connection) {
     let loop = true;
@@ -26,10 +28,7 @@ async function inputConnectionListener(connection) {
             (packet)=> {
                 this[onPacketSym](packet);
             },
-            ()=> {
-                console.log("connection ", connection, " lost.");
-                loop = false;
-            }
+            ()=> { loop = false; }
         );
     }
 }
@@ -40,16 +39,17 @@ async function inputConnectionListener(connection) {
 
 class FbpPort {
     [connectionsSym] = [];
+    [createConnectionSym](other) {
+
+    }
     /**
      * @constructor
      * @param {FbpProcess} process
      * @param {FbpType} type
      * @param {string} name
      * @param {FbpPortDirection} direction
-     * @param {boolean} active
-     * @param baseValue
      */
-    constructor(process, type, name, direction, active = true, baseValue = undefined) {
+    constructor(process, type, name, direction) {
         this.name = name;
         this.type = type;
         this[directionSym] = direction;
@@ -93,28 +93,10 @@ class FbpPort {
      * @type {FbpConnection[]}
      */
     get connections() { return this[connectionsSym]; }
+
 //______________________________________________________________________________________________________________________
 //----------------------------------------------- connection management ------------------------------------------------
 
-    /**
-     * Only to be used by {@link FbpConnection} contructor
-     * @param connection
-     */
-    addConnection(connection) {
-        this.connections.push(connection);
-    }
-    /**
-     * Only to be used by {@link FbpConnection#destroy} method
-     * @param connection
-     */
-    removeConnection(connection) {
-        const idx = this.connections.indexOf(connection);
-        if (idx >= 0) {
-            this.connections.splice(idx, 1);
-        }
-        else
-            console.error("specified connection is not linked to this port");
-    }
     /**
      * @param {FbpPort} other
      * @return {boolean}
@@ -138,24 +120,45 @@ class FbpPort {
         }
         return null;
     }
+    [createConnectionSym](other) {
+        return new FbpConnection(this, other);
+    }
+    [onConnectionAddedSym](connection) {
+    }
     /**
      * @param {FbpPort} other
      */
     connect(other) {
-        if(this.canConnect(other) && !this.getConnectionWith(other))
-            return new FbpConnection(this, other);
+        if(this.canConnect(other) && other.canConnect(this) && !this.getConnectionWith(other)) {
+            const c = this[createConnectionSym](other);
+            this.connections.push(c);
+            other.connections.push(c);
+            this[onConnectionAddedSym](c);
+            other[onConnectionAddedSym](c);
+            return c;
+        }
         else {
             console.error("Unable to connect the two ports");
             return undefined;
         }
     }
 
-    disconnect(other) {
+    /**
+     * @param {FbpPort} other
+     * @param {boolean} invokeConnectionDelete
+     * @return {FbpConnection|undefined}
+     */
+    disconnect(other, invokeConnectionDelete = true) {
         let i = this.connections.length;
         while(i--) {
-            if(this.connections[i].connects(this, other)) {
-                this.connections[i].destroy();
-                return this.connections[i];
+            const c = this.connections[i];
+            if(c.connects(this, other)) {
+                let j = other.connections.indexOf(c);
+                this.connections.splice(i, 1);
+                other.connections.splice(j, 1);
+                if(invokeConnectionDelete)
+                    c.delete(false);
+                return c;
             }
         }
         return undefined;
@@ -164,7 +167,36 @@ class FbpPort {
     disconnectAll() {
         let i = this.connections.length;
         while(i--)
-            this.connections[i].destroy();
+            this.connections[i].delete();
+        this.connections.splice(0);
+    }
+
+//______________________________________________________________________________________________________________________
+//--------------------------------------------------- other methods ----------------------------------------------------
+
+    delete() {
+        if(this.process) {
+            this.disconnectAll();
+            const process = this.process;
+            this[processSym] = undefined;
+            process.removePort(this);
+        }
+    }
+
+    toString() {
+        return this.process.toString() + '#' + (this.input ? '<' : '>') + this.name;
+    }
+
+    save() {
+        return {
+            direction: this.input ? 'in' : 'out',
+            name: this.name,
+            type: this.type.name,
+        }
+    }
+    saveConnections(array = []) {
+        array.push(...this.connections.map(c=>c.save()));
+        return array;
     }
 }
 
@@ -197,30 +229,12 @@ class FbpPacketPort extends FbpPort {
         return (other instanceof FbpPacketPort) && super.canConnect(other);
     }
 
-    /**
-     * Only to be used by {@link FbpConnection} contructor
-     * @param connection
-     */
-    addConnection(connection) {
-        if(!(connection instanceof FbpPacketConnection))
-            throw new Error("Packet ports can only be used with packet connections");
-
-        super.addConnection(connection);
-        if(this.input && this.running) {
-            this[listenerSym](connection);
-        }
+    [createConnectionSym](other) {
+        return new FbpPacketConnection(this, other);
     }
-    // noinspection JSCheckFunctionSignatures
-    /**
-     * @param {FbpPacketPort} other
-     */
-    connect(other) {
-        if(this.canConnect(other) && !this.getConnectionWith(other)) {
-            return new FbpPacketConnection(this, other);
-        } else {
-            console.error("Unable to connect the two ports");
-            return undefined;
-        }
+    [onConnectionAddedSym](connection) {
+        if(this.input && this.running)
+            this[listenerSym](connection);
     }
 
     start() {
@@ -249,6 +263,12 @@ class FbpPacketPort extends FbpPort {
         if(this.input)
             this.process.handlePacket(this, packet);
         else throw Error("Output ports cannot receive packets");
+    }
+
+    save() {
+        const obj = super.save();
+        obj.type = "packet";
+        return obj;
     }
 }
 
@@ -297,32 +317,14 @@ class FbpPassivePort extends FbpPort {
         return (other instanceof FbpPassivePort) && super.canConnect(other);
     }
 
-    /**
-     * Only to be used by {@link FbpConnection} contructor
-     * @param connection
-     */
-    addConnection(connection) {
-        if(!(connection instanceof FbpPassiveConnection))
-            throw new Error("Passive ports can only be used with passive connections");
-        if(this.input && this.connections.length > 0)
-            throw new Error("Input passive ports can only be connected to 1 output (passive) port");
-        super.addConnection(connection);
-        if(this.input && this.running) {
-            this[listenerSym](connection);
-        }
+    [createConnectionSym](other) {
+        return new FbpPassiveConnection(this, other);
     }
 
-    // noinspection JSCheckFunctionSignatures
-    /**
-     * @param {FbpPassivePort} other
-     */
-    connect(other) {
-        if(this.canConnect(other) && !this.getConnectionWith(other)) {
-            return new FbpPassiveConnection(this, other);
-        } else {
-            console.error("Unable to connect the two ports");
-            return undefined;
-        }
+    save() {
+        const obj = super.save();
+        obj.type = "passive";
+        return obj;
     }
 }
 

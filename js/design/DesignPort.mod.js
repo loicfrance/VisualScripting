@@ -250,28 +250,53 @@ class DesignPort {
     connect(other) {
         const connection = this[portSym].connect(other[portSym]);
         if(connection) {
-            const designConn = new DesignConnection(this.process.board, connection)
+            const designConn = new DesignConnection(this.process.board, connection);
             this[connectionsSym].push(designConn);
             other[connectionsSym].push(designConn);
         }
     }
 
     /**
-     * @param {DesignPort} other
+     * only to be used by DesignConnection
+     * @param {DesignConnection} connection
      */
-    disconnect(other) {
+    addConnection(connection) {
+        this[connectionsSym].push(connection);
+    }
+    /**
+     * only to be used by DesignConnection
+     * @param {DesignConnection} connection
+     */
+    removeConnection(connection) {
+        const idx = this[connectionsSym].indexOf(connection);
+        if(idx >= 0)
+            this[connectionsSym].splice(idx, 1);
+    }
+
+    /**
+     * @param {DesignPort} other
+     * @param {boolean} invokeConnectionDelete
+     */
+    disconnect(other, invokeConnectionDelete = true) {
         let i = this[connectionsSym].length;
         while(i--) {
             if(this[connectionsSym][i].connects(this, other)) {
                 const c = this[connectionsSym][i];
-                c.destroy();
+                this[connectionsSym].splice(i);
+                const j = other[connectionsSym].indexOf(c);
+                other[connectionsSym].splice(j, 1);
+                if(invokeConnectionDelete)
+                    c.delete(false);
+                break;
             }
         }
+        this[portSym].disconnect(other[portSym]);
     }
     disconnectAll() {
         let i = this[connectionsSym].length;
         while(i--)
-            this[connectionsSym][i].destroy();
+            this[connectionsSym][i].delete();
+        this[portSym].disconnectAll();
     }
 
     /**
@@ -285,6 +310,19 @@ class DesignPort {
                 return this[connectionsSym][i];
         }
         return null;
+    }
+
+    /**
+     * @param {DesignPort} port
+     * @return {boolean}
+     */
+    connectedTo(port) {
+        let i = this[connectionsSym].length;
+        while(i--) {
+            if (this[connectionsSym][i].connects(this, port))
+                return true;
+        }
+        return false;
     }
 
     start() {
@@ -302,6 +340,19 @@ class DesignPort {
         if(this.active) {
             this[portSym].send(packet);
         }
+    }
+
+    delete() {
+        this[portSym].delete();
+        this.disconnectAll();
+        this.nameElmt.removeEventListener('dblclick', this[nameEditorListenerSym]);
+        this.bulletElmt.removeEventListener('mousedown', this[bulletListenerSym]);
+        this.bulletElmt.removeEventListener('mouseup', this[bulletListenerSym]);
+        this.bulletElmt.removeEventListener('mouseenter', this[bulletListenerSym]);
+        this.bulletElmt.removeEventListener('mouseout', this[bulletListenerSym]);
+        if(this.passive)
+            this.valueElmt.removeEventListener('focus', this[valueEditorListenerSym]);
+
     }
 
 //_____________________________________________________view methods_____________________________________________________

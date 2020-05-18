@@ -1,4 +1,5 @@
 import {Vec2, Rect, Circle} from "../../../jsLibs_Modules/geometry2d/geometry2d.mod.js";
+import {InputManager, KeyMap} from "../../../jsLibs_Modules/utils/input.mod.js";
 import DesignViewPort from "./DesignCameraManager.mod.js";
 import {ConnectionCreator, ConnectionsManager} from "./DesignConnection.mod.js";
 import {DesignProcess} from "./DesignProcess.mod.js";
@@ -9,13 +10,75 @@ const centerSym = Symbol("center");
 
 class DesignBoard {
     processes = [];
+    /**
+     * @type {ConnectionsManager}
+     */
     connectionsManager = new ConnectionsManager();
     globalDiv;
     processDiv;
     /** @type {*[]} */
     selected = [];
+    /** @type {*} */
+    hovered = undefined;
     /** @type {ConnectionCreator|undefined} */
     connectionCreator = undefined;
+
+    keyMap = new KeyMap({
+        mapping: {
+            "escape"    : {code: 'Escape'},
+            "connect"   : {key: 'C'},
+            "undo"      : {key: 'Z', ctrlKey: true},
+            "redo"      : [{key: 'Y', ctrlKey: true}, {key: 'Z', ctrlKey: true, shiftKey: true}],
+            "copy"      : {key: 'C', ctrlKey: true},
+            "paste"     : {key: 'V', ctrlKey: true},
+            "cut"       : {key: 'X', ctrlKey: true},
+            "delete"    : [{code: 'Backspace'}, {code: 'Delete'}],
+            "move-left" : {code: 'ArrowLeft', ctrlKey:true},
+            "move-up"   : {code: 'ArrowUp', ctrlKey:true},
+            "move-right": {code: 'ArrowRight', ctrlKey:true},
+            "move-down" : {code: 'ArrowDown', ctrlKey:true},
+            "zoom-in"   : {key: '+'},
+            "zoom-out"  : {key: '-'},
+            "view-left" : {code: 'ArrowLeft'},
+            "view-up"   : {code: 'ArrowUp'},
+            "view-right": {code: 'ArrowRight'},
+            "view-down" : {code: 'ArrowDown'},
+            "view-full" : {key: 'F'},
+            "save"      : {key: 'S', ctrlKey: true},
+        },
+        callback: (action, evt)=> {
+            if(evt.isComposing || evt.target.isContentEditable) return;
+            if(evt.defaultPrevented) return;
+            switch(action) {
+                case "escape"       :
+                    this.clearSelection();
+                    break;
+                case "connect"      : break;
+                case "undo"         : break;
+                case "redo"         : break;
+                case "copy"         : break;
+                case "paste"        : break;
+                case "cut"          : break;
+                case "delete"       : this.deleteSelected(); break;
+                case "move-left"    : break;
+                case "move-up"      : break;
+                case "move-right"   : break;
+                case "move-down"    : break;
+                case "zoom-in"      : break;
+                case "zoom-out"     : break;
+                case "view-left"    : break;
+                case "view-up"      : break;
+                case "view-right"   : break;
+                case "view-down"    : break;
+                case "view-full"    : break;
+                case "save"         : console.log(this.exportJSON()); break;
+                default : break;
+            }
+        }
+    });
+//######################################################################################################################
+//#                                                    CONSTRUCTOR                                                     #
+//######################################################################################################################
 
     /**
      * @constructor
@@ -25,6 +88,7 @@ class DesignBoard {
         this.globalDiv = div;
         this.processDiv = div.querySelector('.processes');
         this.globalDiv.appendChild(this.connectionsManager.elmt);
+        this.globalDiv.appendChild(this.connectionsManager.selectedLayer);
         this.center = Vec2.ZERO;
         this.zoom = 1;
         this.viewPort = new DesignViewPort(div,
@@ -38,20 +102,11 @@ class DesignBoard {
                     this.connectionsManager.update(zoom, visibleRect);
                 }
             });
-        window.addEventListener('keydown',
-            /** @param {KeyboardEvent} evt */
-            (evt)=> {
-            if(evt.isComposing || evt.target.isContentEditable) return; // skip event if typing
-            switch(evt.code) {
-                case 'Escape' :
-                    this.clearSelection();
-                    if(this.connectionCreator) {
-                        this.connectionCreator.destroy();
-                        this.connectionCreator = undefined;
-                    }
-                    break;
-            }
-        });
+        this.keyMap.enable(this.globalDiv, 'keydown');
+
+        if(document.activeElement === document.body)
+            this.globalDiv.focus();
+
         {
             const startPos = Vec2.zero;
             let shiftKey = false;
@@ -82,6 +137,11 @@ class DesignBoard {
             });
         }
     }
+
+//######################################################################################################################
+//#                                                     SELECTION                                                      #
+//######################################################################################################################
+
     setSelection(...objects) {
         this.unselect(...this.selected.filter(p=>!objects.includes(p)));
         this.select(...objects.filter(p=>!this.selected.includes(p)));
@@ -101,12 +161,10 @@ class DesignBoard {
             if(idx >= 0) {
                 this.selected.splice(idx, 1);
             }
-            obj.selected = false;
+            if('selected' in obj)
+                obj.selected = false;
         });
-        if(this.connectionCreator) {
-            this.connectionCreator.destroy();
-            this.connectionCreator = undefined;
-        }
+        this.cancelConnectionCreation();
     }
     select(...objects) {
         objects.forEach(obj=> {
@@ -114,42 +172,45 @@ class DesignBoard {
             if(idx === -1) {
                 this.selected.push(obj);
             }
-            obj.selected = true;
+            if('selected' in obj)
+                obj.selected = true;
         });
+        this.cancelConnectionCreation();
+    }
+
+    cancelConnectionCreation() {
         if(this.connectionCreator) {
-            this.connectionCreator.destroy();
+            this.connectionCreator.delete();
             this.connectionCreator = undefined;
         }
     }
-
     /**
      * @param {*} object
      * @param {MouseEvent} evt
      */
     onObjectClick(object, evt) {
+        if(evt.shiftKey)  this.toggleSelection(object);
+        else this.setSelection(object);
+    }
 
-        if(evt.shiftKey) {
-            this.toggleSelection(object);
-        }
-        else {
-            this.setSelection(object);
-        }
-    }
-    onProcessDrag(process, evt, delta = Vec2.ZERO) {
-        if(process.selected === false) {
-            if(evt.shiftKey) this.select(process);
-            else this.setSelection(process);
-        }
-        if(!delta.isZero()) this.selected.forEach(obj=> {
-            if(obj instanceof DesignProcess && obj !== process) {
+    moveSelected(delta) {
+        this.selected.forEach(obj=> {
+            if(obj.move)
                 obj.move(delta);
-            }
         });
-        if(this.connectionCreator) {
-            this.connectionCreator.destroy();
-            this.connectionCreator = undefined;
-        }
     }
+    deleteSelected() {
+        this.selected.forEach(obj=> {
+            if(obj.delete) {
+                obj.delete();
+            }
+        })
+    }
+
+//######################################################################################################################
+//#                                                  CAMERA MOVEMENTS                                                  #
+//######################################################################################################################
+
     set zoom(value) {
         this[zoomSym] = value;
         this.processDiv.style.transform = `scale(${value})`;
@@ -184,25 +245,10 @@ class DesignBoard {
      * @param {MouseEvent} evt
      */
     onPortBulletMouseEvent(port, evt) {
-        switch(evt.type) {
-            case 'mouseenter' :
-                if(this.connectionCreator)
-                    this.connectionCreator.onPortHover(port);
-                break;
-            case 'mouseout' :
-                if(this.connectionCreator)
-                    this.connectionCreator.onPortHover(null);
-                break;
-            case 'mousedown' :
-                if(this.connectionCreator)
-                    this.connectionCreator = this.connectionCreator.onPortClick(port, evt);
-                else if(!port.connectionFull)
-                    this.connectionCreator = new ConnectionCreator(this, port);
-                break;
-            case 'mouseup' :
-                if(this.connectionCreator)
-                    this.connectionCreator = this.connectionCreator.onPortClick(port, evt);
-        }
+        if(this.connectionCreator)
+            this.connectionCreator = this.connectionCreator.onPortMouseEvent(port, evt);
+        else if (evt.type === 'mousedown' && !port.connectionFull)
+            this.connectionCreator = new ConnectionCreator(this, port);
     }
 
     addProcess(process) {
@@ -219,20 +265,25 @@ class DesignBoard {
             this.processDiv.removeChild(process.elmt);
         }
     }
-    showConnection(connection) {
-        this.connectionsManager.showConnection(connection);
+    addConnection(connection) {
+        this.connectionsManager.addToUnselected(connection);
     }
-    hideConnection(connection) {
-        this.connectionsManager.showConnection(connection);
+    removeConnection(connection) {
+        this.connectionsManager.removeConnection(connection);
     }
-    /*
-    startAnimation() {
-        this.GM.start();
+
+    save() {
+        const processes = this.processes.map(p=>p.save());
+        const connections = [];
+        this.processes.forEach(p=>p.saveOutputConnections(connections));
+        return {
+            processes: processes,
+            connections: connections
+        };
     }
-    stopAnimation() {
-        this.GM.stop();
+    exportJSON() {
+        return JSON.stringify(this.save(), (key, value) => key === 'id' ? value.toString(16) : value);
     }
-     */
 }
 
 export default DesignBoard;

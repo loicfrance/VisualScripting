@@ -9,6 +9,11 @@ import {DesignType, typesTable} from "./DesignType.mod.js";
 const processTemplate = document.querySelector('#process-template').content.firstElementChild;
 const detailsTemplate = document.querySelector('#process-details-template').content.firstElementChild;
 
+const selectedBeforeSym = Symbol("process selected before mousedown event is fired");
+const accumulatedDeltaSym = Symbol("accumulated mouse movement for dragging");
+const dragListenerSym = Symbol("mousedown event listener (used to move the process)");
+const titleEditorListenerSym = Symbol("dblclick listener for title edition");
+
 class DesignProcess extends FbpProcess {
     /** @type {DesignPort[]} */
     inputDesignPorts = [];
@@ -30,6 +35,46 @@ class DesignProcess extends FbpProcess {
     /** @type {HTMLDivElement} */
     detailsDiv = this.elmt.querySelector(".details");
 
+    [selectedBeforeSym] = false;
+    [accumulatedDeltaSym] = Vec2.zero;
+    [dragListenerSym] = dragListener.bind(this, {
+        buttonMask: MouseButton.LEFT, cursor: 'grabbing',
+        onStart: (evt)=> {
+            if(evt.target.isContentEditable || evt.defaultPrevented || evt.target instanceof HTMLButtonElement)
+                return false;
+            evt.preventDefault();
+            this[selectedBeforeSym] = this.selected;
+            if(!this[selectedBeforeSym]) this.board.onObjectClick(this, evt);
+        },
+        onMove: (evt, pos, delta) => {
+            this[accumulatedDeltaSym].add(delta.mul(1/this.board.zoom));
+            const rounded = this[accumulatedDeltaSym].clone().mul(0.2).roundedVec().mul(5);
+            if(!rounded.isZero()) {
+                this[accumulatedDeltaSym].remove(rounded);
+                this.board.moveSelected(rounded);
+            }
+        },
+        onStop: (evt)=> {
+            evt.stopPropagation();
+            this.position.set(this.position.mul(0.2).roundedVec().mul(5));
+            if(this[selectedBeforeSym]) this.board.onObjectClick(this, evt);
+        }
+    });
+    [titleEditorListenerSym] = editorListener.bind(this, {
+        onEditStart: () => { this.board.setSelection(this); },
+        onKeyDown: (evt) => {
+            switch(evt.code) {
+                case 'Escape' : evt.target.textContent = this.name; //fall through 'Escape' case
+                case 'Enter' : evt.target.blur(); evt.preventDefault(); break;
+            }
+        },
+        onInput: (evt)=> { this.update(); return true; },
+        onFocusLost: (evt)=> {
+            this.name = evt.target.textContent.trim();
+            this.update();
+        }
+    });
+
     /** @constructor
      * @param {DesignBoard} board
      * @param name
@@ -41,42 +86,10 @@ class DesignProcess extends FbpProcess {
         this.board = board;
         this.position.set(position.clone().mul(0.1).roundedVec().mul(10));
 
-        let selectedBefore = false;
-        this.elmt.addEventListener('mousedown', dragListener.bind(this, {
-            buttonMask: MouseButton.LEFT, cursor: 'grabbing',
-            onStart: (evt)=> {
-                if(evt.target.isContentEditable || evt.defaultPrevented) return false;
-                evt.preventDefault();
-                selectedBefore = this.selected;
-                if(!selectedBefore) this.board.onObjectClick(this, evt);
-            },
-            onMove: (evt, pos, delta) => {
-                delta.mul(1/this.board.zoom);
-                this.move(delta);
-                this.board.onProcessDrag(this, evt, delta);
-            },
-            onStop: (evt)=> {
-                evt.stopPropagation();
-                this.position.set(this.position.mul(0.1).roundedVec().mul(10));
-                if(selectedBefore) this.board.onObjectClick(this, evt);
-            }
-        }));
+        this.elmt.addEventListener('mousedown', this[dragListenerSym]);
 
+        this.titleElmt.addEventListener('dblclick', this[titleEditorListenerSym]);
 
-        this.titleElmt.addEventListener('dblclick', editorListener.bind(this, {
-            onEditStart: () => { this.board.setSelection(this); },
-            onKeyDown: (evt) => {
-                switch(evt.code) {
-                    case 'Escape' : evt.target.textContent = this.name; //fall through 'Escape' case
-                    case 'Enter' : evt.target.blur(); evt.preventDefault(); break;
-                }
-            },
-            onInput: (evt)=> { this.update(); return true; },
-            onFocusLost: (evt)=> {
-                this.name = evt.target.textContent.trim();
-                this.update();
-            }
-        }));
         this.selected = false;
         this.color = color;
         this.update();
@@ -240,8 +253,8 @@ class DesignProcess extends FbpProcess {
     }
 
     updatePosition() {
-        this.elmt.style.left = Math.floor(this.position.x/10)*10 + 'px';
-        this.elmt.style.top = Math.floor(this.position.y/10)*10 + 'px';
+        this.elmt.style.left = this.position.x + 'px';
+        this.elmt.style.top = this.position.y + 'px';
         this.updateConnections();
         //TODO hide element if not in visible rect
     }
@@ -276,7 +289,32 @@ class DesignProcess extends FbpProcess {
     handlePacket(port, value) {
         console.log(value);
     }
+    clearPorts() {
+        let i = this.inputDesignPorts.length;
+        while(i--) this.inputDesignPorts[i].disconnectAll();
+        this.inputDesignPorts.splice(0);
 
+        i = this.outputDesignPorts.length;
+        while(i--) this.outputDesignPorts[i].disconnectAll();
+        this.outputDesignPorts.splice(0);
+
+        super.clearPorts();
+    }
+
+    delete() {
+        this.titleElmt.blur();
+        this.elmt.removeEventListener('mousedown', this[dragListenerSym]);
+        this.titleElmt.removeEventListener('dblclick', this[titleEditorListenerSym]);
+        if(this.elmt.parentElement)
+            this.elmt.parentElement.removeChild(this.elmt);
+        super.delete();
+    }
+    save() {
+        const obj = super.save();
+        obj.position = this.position.toString();
+        obj.color = this.color;
+        return obj;
+    }
 }
 
 export {

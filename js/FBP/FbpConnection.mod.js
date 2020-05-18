@@ -64,13 +64,6 @@ class FbpConnection {
     }
     get endPort() { return this[endPortSym]; }
 
-    destroy() {
-        this.startPort.removeConnection(this);
-        this.startPort = undefined;
-        this.endPort.removeConnection(this);
-        this.endPort = undefined;
-    }
-
     /**
      * @param {FbpPort} port1
      * @param {FbpPort} port2
@@ -81,6 +74,18 @@ class FbpConnection {
             return this.startPort === port1 && this.endPort === port2;
         else
             return this.startPort === port2 && this.endPort === port1;
+    }
+
+    delete(invokePortDisconnect = true) {
+        if(invokePortDisconnect)
+            this.startPort.disconnect(this.endPort);
+    }
+
+    save() {
+        return {
+            from: this.startPort.toString(),
+            to: this.endPort.toString(),
+        }
     }
 }
 class FbpPacketConnection extends FbpConnection {
@@ -94,8 +99,6 @@ class FbpPacketConnection extends FbpConnection {
     constructor(port1, port2) {
         super(port1, port2);
 
-        this.startPort.addConnection(this);
-        this.endPort.addConnection(this);
     }
 
     set startPort(port) {
@@ -137,10 +140,15 @@ class FbpPacketConnection extends FbpConnection {
     clear() {
         this[queueSym].clear();
     }
-    destroy() {
+    delete() {
         this.clear();
         this.cancelRead();
-        super.destroy();
+        super.delete(...arguments);
+    }
+    save() {
+        const obj = super.save();
+        obj.type = 'packet';
+        return obj;
     }
 }
 class FbpPassiveConnection extends FbpConnection {
@@ -151,8 +159,6 @@ class FbpPassiveConnection extends FbpConnection {
      */
     constructor(port1, port2) {
         super(port1, port2);
-        this.startPort.addConnection(this);
-        this.endPort.addConnection(this);
     }
     set startPort(port) {
         if(!(port instanceof FbpPassivePort))
@@ -169,6 +175,11 @@ class FbpPassiveConnection extends FbpConnection {
     get endPort() { return super.endPort; }
     get value() {
         return this.startPort.value;
+    }
+    save() {
+        const obj = super.save();
+        obj.type = 'passive';
+        return obj;
     }
 }
 

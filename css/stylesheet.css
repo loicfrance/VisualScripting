@@ -53,16 +53,23 @@ html, body {
     height: 0;
     top: 0;
     left: 0;
-    z-index: 0;
+    z-index: 2;
 }
 /******************************************************************************
 *                                 CONNECTIONS                                 *
 ******************************************************************************/
 .connections {
+    position: absolute;
+    top: 0;
+    left: 0;
     width: 100%;
     height: 100%;
     z-index: 1;
     pointer-events: none;
+}
+.connections.selected {
+    z-index: 1;
+    filter: drop-shadow( 0 0 10px white);
 }
 /*
 .connections > defs > marker#marker-connection {
