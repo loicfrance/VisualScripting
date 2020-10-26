@@ -1,32 +1,54 @@
 
+import {Vec2} from "../../jsLibs_Modules/geometry2d/Vec2.mod.js";
 import DesignBoard from "./design/DesignBoard.mod.js";
-import {UserConstantDesignProcess, UserPacketLauncherDesignProcess, Operator, OperationDesignProcess, ScriptDesignProcess} from "./design/premadeProcesses.mod.js";
-import {Vec2} from "../../jsLibs_Modules/geometry2d/geometry2d.mod.js";
-import {FbpPortDirection, FbpPacketPort} from "./FBP/fbp.mod.js";
+import {PortValueVisibility} from "./design/DesignPort.mod.js";
+import {
+    OperationProcess,
+    Operator,
+    UserConstantProcess,
+    UserPacketLauncherProcess,
+    ScriptProcess
+} from "./design/premadeProcesses.mod.js";
+import {FbpPortDirection, FbpProcess} from "./FBP/fbp.mod.js";
+import {FbpSheet} from "./FBP/FbpSheet.mod.js";
 import SidePanel from "./SidePanel.mod.js";
-import {DesignPort, PortValueVisibility} from "./design/DesignPort.mod.js";
 import {typesTable} from "./design/DesignType.mod.js";
 
 
 function main() {
 
+    const fbpSheet = new FbpSheet();
     const board = new DesignBoard(document.getElementsByClassName("board")[0]);
+    board.fbpSheet = fbpSheet;
+    //const testProcess_1 = new FbpProcess(fbpSheet, {name:"test_1"});
+    //const testProcess_2 = new FbpProcess(fbpSheet, {name:"test_2"});
 
-    const process1 = new UserConstantDesignProcess(board, {name:"A",type:"int", visibleName: true, position: new Vec2(-250,-50), baseValue: 0});
-    board.addProcess(process1);
-    const process2 = new UserConstantDesignProcess(board, {name:"B",type:"int", visibleName: true, position: new Vec2(-250,+50), baseValue: 0});
-    board.addProcess(process2);
 
+    //testProcess_1.createPort({passive: false, direction: FbpPortDirection.IN, type: typesTable["any"], name: "activate"});
+    //testProcess_1.createPort({passive: false, direction: FbpPortDirection.OUT, type: typesTable["any"], name: "done"});
+    //testProcess_2.createPort({passive: false, direction: FbpPortDirection.IN, type: typesTable["any"], name: "activate"});
+    //testProcess_2.createPort({passive: false, direction: FbpPortDirection.OUT, type: typesTable["any"], name: "done"});
+    //testProcess_1.getPort("done").connect(testProcess_2.getPort("activate"));
+
+
+
+    const constantA = new UserConstantProcess(fbpSheet, {name:"A", type:"int", hideName: false, position: new Vec2(-250,-50), baseValue: 0});
+    const constantB = new UserConstantProcess(fbpSheet, {name:"B", type:"int", hideName: false, position: new Vec2(-250,+50), baseValue: 0});
+
+    const product = new OperationProcess(fbpSheet, {operator: Operator.PRODUCT, position: new Vec2(0, -60)});
+    const sum = new OperationProcess(fbpSheet, {operator: Operator.SUM, position: new Vec2(0, +60)});
+
+    const launch = new UserPacketLauncherProcess(fbpSheet, {name: "Launch", position: new Vec2(-100, -100)});
+
+    const logger = new ScriptProcess(fbpSheet, {script: "console.log(process.getPort('arg0').value)", position: new Vec2(350,-30)});
+    logger.createPort({name: 'execute', passive: false, direction: FbpPortDirection.IN, output: false, type: typesTable['void']});
+    logger.createPort({name: 'arg0', passive: true, direction: FbpPortDirection.IN, valueVisibility: PortValueVisibility.VISIBLE, output: false, type: typesTable['any']});
+/*
     const process3 = new OperationDesignProcess(board, Operator.PRODUCT, new Vec2(0,-30));
     board.addProcess(process3);
 
-    const process4 = new ScriptDesignProcess(board, "console.log('Hello World!')", new Vec2(350,-30));
-    process4.createPort({name: 'execute', passive: false, valueVisibility: PortValueVisibility.HIDDEN, output: false, type: 'void'});
-    process4.createPort({name: 'arg0', passive: true, valueVisibility: PortValueVisibility.VISIBLE, output: false, type: 'any'});
+    const process4 =
     board.addProcess(process4);
-
-    const process5 = new UserPacketLauncherDesignProcess(board, {name: "Launch", position: new Vec2(-100, -100)});
-    board.addProcess(process5);
     /*
     const mux = new RouterDesignProcess(board,  2, 2, 'int', 'int', new Vec2(-500, 250));
     */
@@ -39,7 +61,6 @@ function main() {
     process3.outputPort(1).connect(process4.inputPort(1));
     */
 
-    window.process1 = process1;
     window.board = board;
     const infoPanel = new SidePanel(document.getElementById("info-panel"));
     const optionsPanel = new SidePanel(document.getElementById("options-panel"));

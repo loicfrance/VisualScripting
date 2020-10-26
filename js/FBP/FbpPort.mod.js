@@ -1,9 +1,10 @@
-import {FbpConnection, FbpPacketConnection, FbpPassiveConnection} from "./FbpConnection.mod.js";
+import {FbpPacketConnection, FbpPassiveConnection} from "./FbpConnection.mod.js";
 
 
 const FbpPortDirection = {
     IN      : 0,
     OUT     : 1,
+    UNKNOWN : 2,
     isDirectionValid: (dir) => (dir === FbpPortDirection.IN)
                             || (dir === FbpPortDirection.OUT),
 };
@@ -13,13 +14,12 @@ const typeSym = Symbol("type");
 const directionSym = Symbol("direction");
 const connectionsSym = Symbol("connections");
 const createConnectionSym = Symbol("create a connection");
-const defaultValueSym = Symbol("default value");
 const processSym = Symbol("process");
-const valueSym = Symbol("value");
 const runningSym = Symbol("listening on input connections");
 const onPacketSym = Symbol("onPacket");
 const listenerSym = Symbol("input listener");
-const onConnectionAddedSym = Symbol("connection added to port");
+
+const additionalInformationSym = Symbol("additional information");
 
 async function inputConnectionListener(connection) {
     let loop = true;
@@ -34,68 +34,117 @@ async function inputConnectionListener(connection) {
 }
 
 //######################################################################################################################
-//#                                                        PORT                                                        #
+//#######################################################        #######################################################
+//#######################################################  PORT  #######################################################
+//#######################################################        #######################################################
 //######################################################################################################################
 
 class FbpPort {
-    [connectionsSym] = [];
-    [createConnectionSym](other) {
-
-    }
+    [nameSym];
+    [typeSym];
     /**
-     * @constructor
-     * @param {FbpProcess} process
-     * @param {FbpType} type
-     * @param {string} name
-     * @param {FbpPortDirection} direction
+     * @type {FbpConnection}
      */
-    constructor(process, type, name, direction) {
-        this.name = name;
-        this.type = type;
-        this[directionSym] = direction;
-
-        /**
-         * @type {FbpProcess}
-         */
-        this[processSym] = process;
-
-        /**
-         * @type {FbpConnection}
-         */
-    }
-//______________________________________________________________________________________________________________________
-//----------------------------------------------------- accessors ------------------------------------------------------
-    /**
-     * @type {string}
-     */
-    set name(value) { this[nameSym] = value; }
-    get name() { return this[nameSym]; }
-
-    /**
-     * @type {FbpType}
-     */
-    set type(value) { this[typeSym] = value;}
-    get type() { return this[typeSym]; }
-
-    /**
-     * @type {FbpPortDirection}
-     */
-    get direction() { return this[directionSym]; }
-    get input() { return this.direction === FbpPortDirection.IN; }
-    get output() { return this.direction === FbpPortDirection.OUT; }
+    [directionSym];
 
     /**
      * @type {FbpProcess}
      */
-    get process() { return this[processSym]; }
+    [processSym];
+    [connectionsSym] = [];
+
+    [additionalInformationSym] = new Map();
+    /**
+     * @constructor
+     * @param {FbpProcess} process
+     * @param {Object} attributes
+     * @param {FbpType|string} attributes.type
+     * @param {string} attributes.name
+     * @param {FbpPortDirection} attributes.direction
+     */
+    constructor(process, attributes) {
+        if(!FbpPortDirection.isDirectionValid(attributes.direction))
+            throw Error("the specified direction is not valid");
+        if(process.getPort(attributes.name))
+            throw Error(`the port name ${attributes.name} is already taken for this process`);
+
+        this[processSym] = process;
+        this[directionSym] = attributes.direction;
+        this[typeSym] = (attributes.type.substr) ? this.sheet.getType(attributes.type) : attributes.type;
+        this[nameSym] = attributes.name;
+        this.process.onPortCreated(this);
+        // noinspection JSCheckFunctionSignatures
+        for(const [key, value] of Object.entries(attributes)) {
+            if(key !== 'name' && key !== 'type' && key !== 'direction') {
+                this.setInfo(key, value);
+            }
+        }
+    }
+
+//######################################################################################################################
+//#                                                     ACCESSORS                                                      #
+//######################################################################################################################
 
     /**
-     * @type {FbpConnection[]}
+     * @type {string}
      */
+    set name(value) {
+        const p = this.process.getPort(value);
+        if(p && p !== this)
+            throw Error(`the port name ${value} is already taken for this process`);
+        if(p === undefined)
+            this[nameSym] = value;
+            this.process.onPortChanged(this);
+    }
+    get name() { return this[nameSym]; }
+
+    /**
+     * @type {FbpType|string}
+     */
+    set type(value) {
+        if(value.substr)
+            value = this.sheet.getType(value);
+        this[typeSym] = value;
+        this.process.onPortChanged(this);
+    }
+    get type() { return this[typeSym]; }
+
+    /** @type {FbpPortDirection} */
+    get direction() { return this[directionSym]; }
+
+    /** @type {boolean} */
+    get input() { return this.direction === FbpPortDirection.IN; }
+
+    /** @type {boolean} */
+    get output() { return this.direction === FbpPortDirection.OUT; }
+
+    /** @type {FbpProcess} */
+    get process() { return this[processSym]; }
+
+    /** @type {FbpConnection[]} */
     get connections() { return this[connectionsSym]; }
 
-//______________________________________________________________________________________________________________________
-//----------------------------------------------- connection management ------------------------------------------------
+    get connectionFull() {
+        return false;
+    }
+    get passive() {
+        return false;
+    }
+
+    // noinspection JSUnusedGlobalSymbols
+    /** @type {boolean} */
+    get deleted() {
+        return this.process === undefined;
+    }
+
+    /** @type {FbpSheet} */
+    get sheet() {
+        return this.process.sheet;
+    }
+
+//######################################################################################################################
+//#                                               CONNECTIONS MANAGEMENT                                               #
+//######################################################################################################################
 
     /**
      * @param {FbpPort} other
@@ -118,46 +167,66 @@ class FbpPort {
             if (this.connections[i].connects(this, port))
                 return this.connections[i];
         }
-        return null;
+        return undefined;
     }
+
+    /**
+     * @param {FbpPort} port
+     * @return {boolean}
+     */
+    connectedTo(port) {
+        return this.getConnectionWith(port) !== undefined;
+    }
+
+    /**
+     * @param {FbpPort} other
+     */
     [createConnectionSym](other) {
-        return new FbpConnection(this, other);
-    }
-    [onConnectionAddedSym](connection) {
+        throw Error("this method must be overridden");
     }
     /**
      * @param {FbpPort} other
      */
     connect(other) {
         if(this.canConnect(other) && other.canConnect(this) && !this.getConnectionWith(other)) {
-            const c = this[createConnectionSym](other);
-            this.connections.push(c);
-            other.connections.push(c);
-            this[onConnectionAddedSym](c);
-            other[onConnectionAddedSym](c);
-            return c;
+            const connection = this[createConnectionSym](other);
+            this.onConnected(connection, other);
+            other.onConnected(connection, this);
         }
         else {
             console.error("Unable to connect the two ports");
             return undefined;
         }
     }
+    /**
+     * @param {FbpConnection} connection
+     * @param {FbpPort} otherPort
+     */
+    onConnected(connection, otherPort) {
+        this.connections.push(connection);
+    }
 
     /**
+     * @param {FbpConnection} connection
+     * @param {FbpPort} otherPort
+     */
+    onDisconnected(connection, otherPort) {
+        let idx = this.connections.indexOf(connection);
+        if(idx >= 0) {
+            this.connections.splice(idx, 1);
+        }
+    }
+    // noinspection JSUnusedGlobalSymbols
+    /**
      * @param {FbpPort} other
-     * @param {boolean} invokeConnectionDelete
      * @return {FbpConnection|undefined}
      */
-    disconnect(other, invokeConnectionDelete = true) {
+    disconnect(other) {
         let i = this.connections.length;
         while(i--) {
             const c = this.connections[i];
             if(c.connects(this, other)) {
-                let j = other.connections.indexOf(c);
-                this.connections.splice(i, 1);
-                other.connections.splice(j, 1);
-                if(invokeConnectionDelete)
-                    c.delete(false);
+                c.delete();
                 return c;
             }
         }
@@ -168,50 +237,113 @@ class FbpPort {
         let i = this.connections.length;
         while(i--)
             this.connections[i].delete();
-        this.connections.splice(0);
+        if(this.connections.length > 0) {
+            throw Error("Error when removing connections");
+        }
     }
 
-//______________________________________________________________________________________________________________________
-//--------------------------------------------------- other methods ----------------------------------------------------
+//######################################################################################################################
+//#                                               ADDITIONAL INFORMATION                                               #
+//######################################################################################################################
+
+    /**
+     * @param {*} key
+     * @param {*} value
+     */
+    setInfo(key, value) {
+        if(key.substr) {
+            switch(key.toLowerCase()) {
+                case "name":
+                case "datatype":
+                case "direction":
+                    throw Error(`the key '${key}' is reserved`);
+                default : break;
+            }
+        }
+        if(value !== this.getInfo(key)) {
+            this[additionalInformationSym].set(key, value);
+            this.process.onPortChanged(this);
+        }
+    }
+
+    // noinspection JSUnusedGlobalSymbols
+    /**
+     * @param {*} key
+     */
+    deleteInfo(key) {
+        if (key in this[additionalInformationSym]) {
+            this[additionalInformationSym].delete(key);
+            this.process.onPortChanged(this);
+        }
+    }
+
+    /**
+     * @param {*} key
+     * @param {*} defaultValue?
+     * @return {*}
+     */
+    getInfo(key, defaultValue = undefined) {
+        if(this[additionalInformationSym].has(key))
+            return this[additionalInformationSym].get(key);
+        else
+            return defaultValue;
+    }
+
+    // noinspection JSUnusedGlobalSymbols
+    /**
+     * @return {*[]}
+     */
+    getAllInfoKeys() {
+        return this[additionalInformationSym].keys();
+    }
+
+//######################################################################################################################
+//#                                                   OTHER METHODS                                                    #
+//######################################################################################################################
 
     delete() {
         if(this.process) {
             this.disconnectAll();
             const process = this.process;
             this[processSym] = undefined;
-            process.removePort(this);
-        }
+            process.onPortDeleted(this);
+        } else throw Error("port already deleted");
     }
 
     toString() {
-        return this.process.toString() + '#' + (this.input ? '<' : '>') + this.name;
+        return this.process.toString() + '#' + this.name;
     }
 
-    save() {
-        return {
+    exportJSON() {
+        const obj = {
             direction: this.input ? 'in' : 'out',
             name: this.name,
-            type: this.type.name,
-        }
-    }
-    saveConnections(array = []) {
-        array.push(...this.connections.map(c=>c.save()));
-        return array;
+            datatype: this.type.name,
+            type: this.constructor.name
+        };
+        Object.assign(obj, Object.fromEntries(this[additionalInformationSym].entries()));
+        return obj;
     }
 }
 
 //######################################################################################################################
-//#                                                    PACKET PORT                                                     #
+//###################################################                ###################################################
+//###################################################  PACKETS PORT  ###################################################
+//###################################################                ###################################################
 //######################################################################################################################
 
 class FbpPacketPort extends FbpPort {
 
     [listenerSym] = inputConnectionListener.bind(this);
 
-    constructor(process, type, name, direction) {
-        super(process, type, name, direction);
+    constructor(process, attributes) {
+        super(process, attributes);
         this.start();
     }
+
+//######################################################################################################################
+//#                                                     ACCESSORS                                                      #
+//######################################################################################################################
 
     /**
      * @returns {FbpPacketConnection[]}
@@ -225,6 +357,10 @@ class FbpPacketPort extends FbpPort {
         return this[runningSym];
     }
 
+//######################################################################################################################
+//#                                               CONNECTIONS MANAGEMENT                                               #
+//######################################################################################################################
+
     canConnect(other) {
         return (other instanceof FbpPacketPort) && super.canConnect(other);
     }
@@ -232,10 +368,15 @@ class FbpPacketPort extends FbpPort {
     [createConnectionSym](other) {
         return new FbpPacketConnection(this, other);
     }
-    [onConnectionAddedSym](connection) {
+    onConnected(connection, otherPort) {
+        super.onConnected(connection, otherPort);
         if(this.input && this.running)
             this[listenerSym](connection);
     }
+
+//######################################################################################################################
+//#                                                PACKETS TRANSMISSION                                                #
+//######################################################################################################################
 
     start() {
         if(!this.running && this.input) {
@@ -244,6 +385,7 @@ class FbpPacketPort extends FbpPort {
         }
     }
 
+    // noinspection JSUnusedGlobalSymbols
     stop() {
         if(this.running) {
             this[runningSym] = false;
@@ -264,34 +406,35 @@ class FbpPacketPort extends FbpPort {
             this.process.handlePacket(this, packet);
         else throw Error("Output ports cannot receive packets");
     }
-
-    save() {
-        const obj = super.save();
-        obj.type = "packet";
-        return obj;
-    }
 }
 
 //######################################################################################################################
-//#                                                    PASSIVE PORT                                                    #
+//###################################################                ###################################################
+//###################################################  PASSIVE PORT  ###################################################
+//###################################################                ###################################################
 //######################################################################################################################
 
 class FbpPassivePort extends FbpPort {
 
-    [defaultValueSym] = undefined;
-
     /**
      * @constructor
      * @param {FbpProcess} process
-     * @param {FbpType} type
-     * @param {string} name
-     * @param {FbpPortDirection} direction
-     * @param {*} defaultValue
+     * @param {Object} attributes
+     * @param {FbpType|string} attributes.type
+     * @param {string} attributes.name
+     * @param {FbpPortDirection} attributes.direction
+     * @param {*} attributes.defaultValue
      */
-    constructor(process, type, name, direction, defaultValue = undefined) {
-        super(process, type, name, direction);
-        this[defaultValueSym] = defaultValue;
+    constructor(process, attributes) {
+        const defaultValue = attributes.defaultValue;
+        delete (attributes.defaultValue);
+        super(process, attributes);
+        this.value = defaultValue;
     }
+
+//######################################################################################################################
+//#                                                     ACCESSORS                                                      #
+//######################################################################################################################
 
     /**
      * @type {FbpPassiveConnection[]}
@@ -302,30 +445,81 @@ class FbpPassivePort extends FbpPort {
     }
 
     get value() {
-        return (this.input && this.connections.length === 1) ? this.connections[0].value : this[defaultValueSym];
+        return (this.input && this.connections.length === 1) ? this.connections[0].value : this.defaultValue;
     }
 
     set value(value) {
-        this[defaultValueSym] = value;
+        super.setInfo("defaultValue", value);
     }
 
     get defaultValue() {
-        return this[defaultValueSym];
+        return this.getInfo("defaultValue");
+    }
+    get connectionFull() {
+        return this.input && this[connectionsSym].length === 1;
+    }
+    get passive() {
+        return true;
     }
 
+//######################################################################################################################
+//#                                               CONNECTIONS MANAGEMENT                                               #
+//######################################################################################################################
+
     canConnect(other) {
-        return (other instanceof FbpPassivePort) && super.canConnect(other);
+        return (other instanceof FbpPassivePort) && !this.connectionFull && !other.connectionFull
+            && super.canConnect(other);
     }
 
     [createConnectionSym](other) {
         return new FbpPassiveConnection(this, other);
     }
 
-    save() {
-        const obj = super.save();
-        obj.type = "passive";
-        return obj;
+//######################################################################################################################
+//#                                                   OTHER METHODS                                                    #
+//######################################################################################################################
+    /**
+     * @param {*} key
+     * @param {*} value
+     */
+    setInfo(key, value) {
+        if(key.substr) {
+            switch(key.toLowerCase()) {
+                case "defaultvalue":
+                    throw Error(`the key '${key}' is reserved`);
+                default : break;
+            }
+        }
+        super.setInfo(key, value);
     }
 }
+class FbpPassivePassThroughPort extends FbpPassivePort {
 
-export {FbpPort, FbpPacketPort, FbpPassivePort, FbpPortDirection};
+    /**
+     * @constructor
+     * @param {FbpProcess} process
+     * @param {Object} attributes
+     * @param {FbpType|string} attributes.type
+     * @param {string} attributes.name
+     * @param {FbpPortDirection} attributes.direction
+     * @param {*} attributes.defaultValue
+     */
+    constructor(process, attributes) {
+        if (attributes.direction === FbpPortDirection.IN)
+            throw Error("PassThrough ports can only be created with Passive Output ports");
+        super(process, attributes);
+    }
+    set value(value) {
+        super.value = value;
+    }
+    get value() {
+        const result = this.process.getPassThroughValue(this);
+        if (result === undefined)
+            return super.value;
+        else
+            return result;
+    }
+
+}
+
+export {FbpPacketPort, FbpPassivePort, FbpPassivePassThroughPort, FbpPortDirection};

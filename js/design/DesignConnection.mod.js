@@ -1,6 +1,7 @@
 import {Vec2, Rect} from "../../../jsLibs_Modules/geometry2d/geometry2d.mod.js";
 import {MouseButton} from "../../../jsLibs_Modules/utils/input.mod.js";
-import {FbpConnection, FbpPacketConnection, FbpPassiveConnection} from "../FBP/fbp.mod.js";
+import {debug} from "../../../jsLibs_Modules/utils/tools.mod.js"
+import {FbpPacketConnection, FbpPassiveConnection} from "../FBP/fbp.mod.js";
 
 const startPosSym = Symbol();
 const endPosSym = Symbol();
@@ -12,6 +13,9 @@ const templateSVG = document.querySelector("#connections-template").content.firs
 const templatePath = templateSVG.querySelector('.connection');
 templateSVG.removeChild(templatePath);
 
+/**
+ * @deprecated
+ */
 class ConnectionsManager {
     constructor() {
         this.elmt = templateSVG.cloneNode(true);
@@ -77,7 +81,9 @@ function getPath(from, to, rect) {
 
 const connSym = Symbol();
 const clickListenerSym = Symbol();
-const boardSym = Symbol();
+const startPortSym = Symbol();
+const endPortSym = Symbol();
+const selectedSym = Symbol("selected");
 
 const magnetSym = Symbol("attached to a port");
 
@@ -102,10 +108,11 @@ class ConnectionCreator {
         this.path.style.stroke = this.beginPort.type.color;
         this.path.style.pointerEvents = 'none';
         this.path.style.strokeDashoffset = '50%';
-        this[port1.input ? endPosSym : startPosSym] = port1.position.clone();
-        this[port1.input ? startPosSym : endPosSym] = port1.position.clone();
+        this[endPosSym] = port1.position.clone();
+        this[startPosSym] = port1.position.clone();
         this.onPortHover(null);
-        board.connectionsManager.addToUnselected(this);
+        board.viewPort.addConnection(this);
+        debug.log("VS-debug", "create connection");
     }
     update(mousePos) {
         if(this[magnetSym] === false) {
@@ -134,7 +141,7 @@ class ConnectionCreator {
         if(port) {
             this.update(port.position);
             this[magnetSym] = true;
-            if(this.beginPort.canConnect(port) && !port.connectionFull) {
+            if(this.beginPort.fbpPort.canConnect(port.fbpPort)) {
                 this.path.style.strokeDasharray = "20, 10";
                 this.path.style.opacity = "1";
             } else {
@@ -149,9 +156,9 @@ class ConnectionCreator {
     }
 
     onPortClick(port, evt) {
-        if(this.beginPort !== port && !port.connectionFull
-                && this.beginPort.canConnect(port) && !this.beginPort.connectedTo(port)) {
-            this.beginPort.connect(port);
+        if(this.beginPort !== port && this.beginPort.fbpPort.canConnect(port.fbpPort)
+                && !this.beginPort.fbpPort.connectedTo(port.fbpPort)) {
+            this.beginPort.fbpPort.connect(port.fbpPort);
             if(!evt.shiftKey) {
                 this.delete();
                 return undefined;
@@ -161,6 +168,7 @@ class ConnectionCreator {
     }
 
     delete() {
+        debug.log("VS-debug", "finish connection creation");
         this.path.parentElement.removeChild(this.path);
     }
 }
@@ -169,6 +177,9 @@ class DesignConnection {
     path = templatePath.cloneNode(true);
     /** @type {FbpConnection} */
     [connSym];
+    [startPortSym];
+    [endPortSym];
+    [selectedSym] = false;
 
     [clickListenerSym] = (function(evt) {
         // noinspection JSCheckFunctionSignatures
@@ -182,67 +193,70 @@ class DesignConnection {
      */
     constructor(board, connection) {
         this[connSym] = connection;
+        this[startPortSym] = board.getDesignProcess(connection.startProcess).getDesignPort(connection.startPort);
+        this[endPortSym] = board.getDesignProcess(connection.endProcess).getDesignPort(connection.endPort);
         this.update();
         this.path.addEventListener('click', this[clickListenerSym]);
-        board.connectionsManager.addToUnselected(this);
+        board.viewPort.addConnection(this);
     }
-    get fbpConnection() { return this[connSym]; }
-    get startProcess() { return this[connSym].startPort.process  }
-    get endProcess() { return this[connSym].endPort.process; }
 
-    get startPort() { return this.startProcess.outputPort(this[connSym].startPort.name); }
-    get endPort() { return this.endProcess.inputPort(this[connSym].endPort.name); }
+//######################################################################################################################
+//#                                                     ACCESSORS                                                      #
+//######################################################################################################################
+
+    get fbpConnection() { return this[connSym]; }
+
+    /** @type {DesignProcess} */
+    get startProcess() { return this.startPort.process; }
+    get endProcess() { return this.endPort.process; }
+
+    /** @type {DesignPort} */
+    get startPort() { return this[startPortSym]; }
+    /** @type {DesignPort} */
+    get endPort() { return this[endPortSym]; }
 
     get startPosition() { return this.startPort.position; }
     get endPosition() { return this.endPort.position; }
 
-    get active() { return this[connSym] instanceof FbpPacketConnection; }
-    get passive() { return this[connSym] instanceof FbpPassiveConnection; }
+    get active() { return this.fbpConnection instanceof FbpPacketConnection; }
+    get passive() { return this.fbpConnection instanceof FbpPassiveConnection; }
 
-    get startType() { return this[connSym].startPort.type; }
-    get endType() { return this[connSym].startPort.type; }
+    get startType() { return this.fbpConnection.startPort.type; }
+    get endType() { return this.fbpConnection.startPort.type; }
 
-    get [boardSym]() {
-        return this.startProcess.board;
+    get board() { return this.startPort.process.board; }
+
+    get selected() {
+        return this[selectedSym];
+    }
+    set selected(value) {
+        this[selectedSym] = value;
+        if(value)
+            this.path.style.strokeDasharray = "5,5";
+        else
+            this.path.style.removeProperty('stroke-dasharray');
     }
 
-    delete(invokePortsDisconnect = true) {
+//######################################################################################################################
+//#                                                   OTHER METHODS                                                    #
+//######################################################################################################################
+
+    delete() {
+        this[connSym].delete();
+    }
+
+    onFbpConnectionDeleted(board) {
         if(this.path) {
             if(this.selected)
-                this[boardSym].unselect(this);
+                board.unselect(this);
             this.path.removeEventListener('click', this[clickListenerSym]);
             this.path.parentElement.removeChild(this.path);
             this.path = null;
-            this[connSym].delete();
-            if(invokePortsDisconnect)
-                this.startPort.disconnect(this.endPort, false);
         }
     }
     update() {
         this.path.setAttribute('d', getPath(this.startPosition, this.endPosition));
         this.path.setAttribute('stroke', this.startType.color);
-    }
-
-    /**
-     * @param {DesignPort} port1
-     * @param {DesignPort} port2
-     * @returns {boolean}
-     */
-    connects(port1, port2)
-    {
-        return port1.output ?
-            this.startPort === port1 && this.endPort === port2
-            : this.startPort === port2 && this.endPort === port1;
-    }
-    set selected(value) {
-        if(value) {
-            this[boardSym].connectionsManager.addToSelected(this);
-        } else {
-            this[boardSym].connectionsManager.addToUnselected(this);
-        }
-    }
-    get selected() {
-        return this[boardSym].connectionsManager.isSelected(this);
     }
 }
 

@@ -1,9 +1,6 @@
 import {MouseButton} from "../../../jsLibs_Modules/utils/input.mod.js";
-import {FbpPort, FbpPassivePort, FbpPacketPort} from "../FBP/fbp.mod.js";
+import {FbpPassivePort, FbpPacketPort} from "../FBP/fbp.mod.js";
 import {editorListener, validateVarName} from "./designUtils.mod.js";
-import {DesignConnection} from "./DesignConnection.mod.js";
-import {typesTable, DesignType} from "./DesignType.mod.js";
-import {Vec2} from "../../../jsLibs_Modules/geometry2d/Vec2.mod.js";
 
 
 const portTemplate = document.querySelector('#process-template').content.querySelector('.port');
@@ -12,16 +9,21 @@ const portTemplate = document.querySelector('#process-template').content.querySe
  * @enum
  */
 const PortValueVisibility = {
-    HIDDEN: 0,
-    VISIBLE: 1,
-    EDITABLE: 2
+    HIDDEN: 'hidden',
+    VISIBLE: 'visible',
+    EDITABLE: 'editable'
 };
 
 const nameEditorListenerSym = Symbol("port name editor listener");
 const valueEditorListenerSym = Symbol("port value editor listener");
 const portSym = Symbol("FBP port");
-const connectionsSym = Symbol("design connections");
+const processSym = Symbol("design process");
 const bulletListenerSym = Symbol("bullet mouse listener");
+
+const portElmtSym = Symbol("port HTML element");
+const bulletElmtSym = Symbol("bullet HTML element");
+const nameElmtSym = Symbol("name HTML element");
+const valueElmtSym = Symbol("value HTML element");
 
 class DesignPort {
 
@@ -29,16 +31,17 @@ class DesignPort {
 //#                                                     ATTRIBUTES                                                     #
 //######################################################################################################################
 
-    htmlElmt = portTemplate.cloneNode(true);
-    nameElmt = this.htmlElmt.querySelector('.name');
-    bulletElmt = this.htmlElmt.querySelector('.bullet');
-    valueElmt = this.htmlElmt.querySelector('.value');
+    [portElmtSym] = portTemplate.cloneNode(true);
+    [nameElmtSym] = this[portElmtSym].querySelector('.name');
+    [bulletElmtSym] = this[portElmtSym].querySelector('.bullet');
+    [valueElmtSym] = this[portElmtSym].querySelector('.value');
 
     /** @type {DesignConnection[]} */
-    [connectionsSym] = [];
 
     /** @type {FbpPassivePort|FbpPacketPort} */
     [portSym];
+    /** @type {DesignProcess} */
+    [processSym];
 
     [nameEditorListenerSym] = editorListener.bind(this, {
         onKeyDown: (evt) => {
@@ -72,10 +75,10 @@ class DesignPort {
         },
         onInput: () => { this.process.updateConnections(); },
         onFocusLost: ()=> {
-            const newValue = this.valueElmt.textContent.length === 0 ? this.defaultValue
-                : this.type.parse(this.valueElmt.textContent);
+            const newValue = this.valueElement.textContent.length === 0 ? this.defaultValue
+                : this.type.parse(this.valueElement.textContent);
             if(this.defaultValue !== newValue) {
-                this.value = newValue;
+                this.fbpPort.value = newValue;
             }
             this.process.updateConnections();
         }
@@ -84,6 +87,7 @@ class DesignPort {
     [bulletListenerSym] = (function(evt) {
         if (MouseButton.getEventSource(evt) === MouseButton.LEFT) {
             evt.preventDefault();
+            evt.stopPropagation();
             this.process.board.onPortBulletMouseEvent(this, evt);
         }
     }).bind(this);
@@ -92,38 +96,28 @@ class DesignPort {
 //######################################################################################################################
     /**
      * @constructor
+     * @param {DesignProcess} process
      * @param {FbpPort} port
-     * @param {Object} options
-     * @param {PortValueVisibility} options.valueVisibility
-     * @param {boolean} options.visibleName
      */
-    constructor(port,
-                {
-                    valueVisibility = PortValueVisibility.HIDDEN,
-                    visibleName = true
-                } = {valueVisibility: PortValueVisibility.HIDDEN, visibleName: true}) {
+    constructor(process, port) {
 
+        this[processSym] = process;
         this[portSym] = port;
-        this.nameElmt.textContent = this.name;
-        this.nameElmt.addEventListener('dblclick', this[nameEditorListenerSym]);
+        this.nameElement.addEventListener('dblclick', this[nameEditorListenerSym]);
 
-        this.bulletElmt.style.borderColor = this.type.color;
-        this.bulletElmt.addEventListener('mousedown', this[bulletListenerSym]);
-        this.bulletElmt.addEventListener('mouseup', this[bulletListenerSym]);
-        this.bulletElmt.addEventListener('mouseenter', this[bulletListenerSym]);
-        this.bulletElmt.addEventListener('mouseout', this[bulletListenerSym]);
+        this.bulletElement.addEventListener('mousedown', this[bulletListenerSym]);
+        this.bulletElement.addEventListener('mouseup', this[bulletListenerSym]);
+        this.bulletElement.addEventListener('mouseenter', this[bulletListenerSym]);
+        this.bulletElement.addEventListener('mouseout', this[bulletListenerSym]);
 
         if(this.passive) {
-            this.htmlElmt.setAttribute('passive', '');
-            this.valueElmt.textContent = this.defaultValue;
-            this.valueElmt.addEventListener('focus', this[valueEditorListenerSym]);
-            this.valueVisibility = valueVisibility;
+            this.htmlElement.setAttribute('passive', '');
+            this.valueElement.textContent = this.defaultValue;
+            this.valueElement.addEventListener('focus', this[valueEditorListenerSym]);
         } else {
-            this.valueElmt.parentNode.removeChild(this.valueElmt); // TODO maybe a button to fire the event ?
-            this.valueElmt = undefined;
+            this.valueElement.parentNode.removeChild(this.valueElement); // TODO maybe a button to fire the event ?
+            this[valueElmtSym] = undefined;
         }
-        this.visibleName = visibleName;
-        this.checkValidName();
         this.update();
     }
 
@@ -133,252 +127,158 @@ class DesignPort {
 
 //__________________________________________________fbp port accessors__________________________________________________
 //----------------------------------------------------------------------------------------------------------------------
-
+    /** @type {FbpPacketPort|FbpPassivePort} */
     get fbpPort() {
         return this[portSym];
     }
-    get process() { return this[portSym].process; }
 
-    get name() { return this[portSym].name; }
+    get name() { return this.fbpPort.name; }
     set name(value) {
-        this[portSym].name = value;
-        this.nameElmt.textContent = value;
+        this.fbpPort.name = value;
     }
 
-    get type() { return this[portSym].type; }
+    get type() { return this.fbpPort.type; }
     set type(type) {
-        this[portSym].type = type;
-        this.bulletElmt.style.borderColor = type.color;
+        this.fbpPort.type = type;
     }
 
     get value() {
-        return (this.passive) ? this[portSym].value : undefined;
+        return (this.passive) ? this.fbpPort.value : undefined;
     }
     set value(value) {
         if(this.passive) {
-            this[portSym].value = value;
+            this.fbpPort.value = value;
             this.updateValueDisplay();
         } else throw Error("Cannot only set value of passive ports");
     }
-    get defaultValue() { return (this.passive) ? this[portSym].defaultValue : undefined; }
-    get passive() { return this[portSym] instanceof FbpPassivePort; }
-    get active() { return this[portSym] instanceof FbpPacketPort; }
-    get input() { return this[portSym].input; }
-    get output() { return this[portSym].output; }
+    get defaultValue() { return (this.passive) ? this.fbpPort.defaultValue : undefined; }
+    get passive() { return this.fbpPort.passive; }
+    get active() { return !this.passive; }
+    get input() { return this.fbpPort.input; }
+    get output() { return this.fbpPort.output; }
     get running() { return this.active && this[portSym].running; }
-
-    get connectionFull() {
-        return this.passive && this.input && this[connectionsSym].length === 1;
-    }
 
 //____________________________________________________view accessors____________________________________________________
 //----------------------------------------------------------------------------------------------------------------------
+    /** @type DesignProcess */
+    get process() { return this[processSym]; }
 
+    /** @type HTMLElement */
+    get nameElement() { return this[nameElmtSym]; }
+    /** @type HTMLElement */
+    get htmlElement() { return this[portElmtSym]; }
+    /** @type HTMLElement */
+    get valueElement() { return this[valueElmtSym]; }
+    /** @type HTMLElement */
+    get bulletElement() { return this[bulletElmtSym]; }
+
+    /** @type boolean */
     set visibleName(value) {
-        if(!value === this.visibleName) {
-            this.htmlElmt.toggleAttribute('hide-name');
-            this.process.updateConnections();
+        if(value) this.fbpPort.deleteInfo('hideName');
+        else this.fbpPort.setInfo('hideName', true);
+    }
+    get visibleName() {
+        return !this.fbpPort.getInfo('hideName');
+    }
+    /** @type PortValueVisibility */
+    set valueVisibility(value) {
+        if(!this.passive)
+            throw Error("value visibility is only available for passive ports");
+        switch(value) {
+            case PortValueVisibility.VISIBLE : this.fbpPort.deleteInfo('valueVisibility'); break;
+            case PortValueVisibility.HIDDEN : // idem as EDITABLE
+            case PortValueVisibility.EDITABLE : this.fbpPort.setInfo('valueVisibility', value); break;
+            default : throw Error("unknown value");
+        }
+    }
+    get valueVisibility() {
+        if(!this.passive)
+            throw Error("value visibility is only available for passive ports");
+        switch (this.fbpPort.getInfo('valueVisibility')) {
+            case 'hidden' : return PortValueVisibility.HIDDEN;
+            case 'editable' : return PortValueVisibility.EDITABLE;
+            case 'visible' : case undefined : return PortValueVisibility.VISIBLE;
+            default : throw Error("unknown value");
         }
     }
     updateValueDisplay() {
-        if (this.passive && this.isValueVisible()) {
-            const value = this.value;
-            const string = value === undefined ? '' : value.toString();
-            if (string !== this.valueElmt.textContent)
-                this.valueElmt.textContent = string;
+        if(this.passive) {
+            const visibility = this.valueVisibility;
+            switch (visibility) {
+                case PortValueVisibility.HIDDEN :
+                    this.valueElement.removeAttribute('contentEditable');
+                    this.htmlElement.removeAttribute('display-value');
+                    break;
+                case PortValueVisibility.VISIBLE :
+                    this.valueElement.removeAttribute('contentEditable');
+                    this.htmlElement.setAttribute('display-value', '');
+                    break;
+                case PortValueVisibility.EDITABLE :
+                    this.valueElement.contentEditable = true;
+                    this.htmlElement.removeAttribute('display-value');
+                    break;
+                default : throw new Error(`${visibility} is not a valid visibility`);
+            }
+            if(!this.isEditingValue() && this.isValueVisible()) {
+                const value = this.value;
+                const string = value === undefined ? '' : value.toString();
+                if (string !== this.valueElement.textContent)
+                    this.valueElement.textContent = string;
+            }
         }
-    }
-
-    get visibleName() {
-        return !this.htmlElmt.hasAttribute('hide-name');
-    }
-
-    set valueVisibility(value) {
-        if(this.valueElmt) switch (value) {
-            case PortValueVisibility.HIDDEN :
-                this.valueElmt.removeAttribute('contentEditable');
-                this.htmlElmt.removeAttribute('display-value');
-                break;
-            case PortValueVisibility.VISIBLE :
-                this.valueElmt.removeAttribute('contentEditable');
-                this.htmlElmt.setAttribute('display-value', '');
-                break;
-            case PortValueVisibility.EDITABLE :
-                this.valueElmt.contentEditable = true;
-                this.htmlElmt.removeAttribute('display-value');
-                break;
-            default : throw new Error(`${value} is not a valid visibility`);
-        }
-        this.updateValueDisplay();
-    }
-    get valueVisibility() {
-        return this.valueElmt ? this.valueElmt.isContentEditable ? PortValueVisibility.EDITABLE
-            : this.htmlElmt.hasAttribute('display-value') ? PortValueVisibility.VISIBLE
-            : PortValueVisibility.HIDDEN : PortValueVisibility.HIDDEN;
     }
 
     set selected(value) {
-        this.htmlElmt.toggleAttribute("selected", !!value);
+        this.htmlElement.toggleAttribute("selected", !!value);
     }
 
     get selected() {
-        return this.htmlElmt.hasAttribute("selected")
+        return this.htmlElement.hasAttribute("selected")
     }
 
     get position() {
-        const r = this.bulletElmt.getBoundingClientRect();
-        return this.process.board.pixelToDesignCoordinatesTransform(new Vec2(r.x + r.width/2, r.y + r.height/2));
+        const r = this.bulletElement.getBoundingClientRect();
+        return this.process.board.viewPort.pageToDesignCoordinatesTransform(r.x + r.width/2, r.y + r.height/2);
     }
 //######################################################################################################################
 //#                                                      METHODS                                                       #
 //######################################################################################################################
 
-//___________________________________________________fbp port methods___________________________________________________
-//----------------------------------------------------------------------------------------------------------------------
-
-    /**
-     * @param {DesignPort} other
-     * @returns {boolean}
-     */
-    canConnect(other) {
-        return this[portSym].canConnect(other[portSym]);
-    }
-
-    /**
-     * @param {DesignPort} other
-     */
-    connect(other) {
-        const connection = this[portSym].connect(other[portSym]);
-        if(connection) {
-            const designConn = new DesignConnection(this.process.board, connection);
-            this[connectionsSym].push(designConn);
-            other[connectionsSym].push(designConn);
-        }
-    }
-
-    /**
-     * only to be used by DesignConnection
-     * @param {DesignConnection} connection
-     */
-    addConnection(connection) {
-        this[connectionsSym].push(connection);
-    }
-    /**
-     * only to be used by DesignConnection
-     * @param {DesignConnection} connection
-     */
-    removeConnection(connection) {
-        const idx = this[connectionsSym].indexOf(connection);
-        if(idx >= 0)
-            this[connectionsSym].splice(idx, 1);
-    }
-
-    /**
-     * @param {DesignPort} other
-     * @param {boolean} invokeConnectionDelete
-     */
-    disconnect(other, invokeConnectionDelete = true) {
-        let i = this[connectionsSym].length;
-        while(i--) {
-            if(this[connectionsSym][i].connects(this, other)) {
-                const c = this[connectionsSym][i];
-                this[connectionsSym].splice(i);
-                const j = other[connectionsSym].indexOf(c);
-                other[connectionsSym].splice(j, 1);
-                if(invokeConnectionDelete)
-                    c.delete(false);
-                break;
-            }
-        }
-        this[portSym].disconnect(other[portSym]);
-    }
-    disconnectAll() {
-        let i = this[connectionsSym].length;
-        while(i--)
-            this[connectionsSym][i].delete();
-        this[portSym].disconnectAll();
-    }
-
-    /**
-     * @param {DesignPort} port
-     * @return {DesignConnection}
-     */
-    getConnectionWith(port) {
-        let i = this[connectionsSym].length;
-        while(i--) {
-            if (this[connectionsSym][i].connects(this, port))
-                return this[connectionsSym][i];
-        }
-        return null;
-    }
-
-    /**
-     * @param {DesignPort} port
-     * @return {boolean}
-     */
-    connectedTo(port) {
-        let i = this[connectionsSym].length;
-        while(i--) {
-            if (this[connectionsSym][i].connects(this, port))
-                return true;
-        }
-        return false;
-    }
-
-    start() {
-        if(this.active) {
-            this[portSym].start();
-        }
-    }
-
-    stop() {
-        if(this.active) {
-            this[portSym].stop();
-        }
-    }
-    send(packet) {
-        if(this.active) {
-            this[portSym].send(packet);
-        }
-    }
-
     delete() {
         this[portSym].delete();
-        this.disconnectAll();
-        this.nameElmt.removeEventListener('dblclick', this[nameEditorListenerSym]);
-        this.bulletElmt.removeEventListener('mousedown', this[bulletListenerSym]);
-        this.bulletElmt.removeEventListener('mouseup', this[bulletListenerSym]);
-        this.bulletElmt.removeEventListener('mouseenter', this[bulletListenerSym]);
-        this.bulletElmt.removeEventListener('mouseout', this[bulletListenerSym]);
+    }
+    onFbpPortDeleted() {
+        this.nameElement.removeEventListener('dblclick', this[nameEditorListenerSym]);
+        this.bulletElement.removeEventListener('mousedown', this[bulletListenerSym]);
+        this.bulletElement.removeEventListener('mouseup', this[bulletListenerSym]);
+        this.bulletElement.removeEventListener('mouseenter', this[bulletListenerSym]);
+        this.bulletElement.removeEventListener('mouseout', this[bulletListenerSym]);
         if(this.passive)
-            this.valueElmt.removeEventListener('focus', this[valueEditorListenerSym]);
+            this.valueElement.removeEventListener('focus', this[valueEditorListenerSym]);
 
+        this.htmlElement.parentElement.removeChild(this.htmlElement);
     }
 
 //_____________________________________________________view methods_____________________________________________________
 //----------------------------------------------------------------------------------------------------------------------
 
     checkValidName() {
-        if(!validateVarName(this.nameElmt.textContent))
-            this.nameElmt.classList.add('invalid');
+        if(!validateVarName(this.nameElement.textContent))
+            this.nameElement.classList.add('invalid');
         else
-            this.nameElmt.classList.remove('invalid');
-    }
-    updateConnections() {
-        this[connectionsSym].forEach(c => c.update());
+            this.nameElement.classList.remove('invalid');
     }
     update() {
-        if(this.passive) {
-            if(this.isValueVisible() && !this.isEditingValue())
-                this.valueElmt.textContent = this.value;
-        }
-        this.updateConnections();
+        this.nameElement.textContent = this.name;
+        this.bulletElement.style.borderColor = this.type.color;
+        this.updateValueDisplay();
+        this.htmlElement.toggleAttribute('hide-name', !this.visibleName);
     }
     isValueVisible() {
         return this.valueVisibility !== PortValueVisibility.HIDDEN;
     }
     isEditingValue() {
-        return this.valueVisibility === PortValueVisibility.EDITABLE && document.activeElement === this.valueElmt;
+        return this.valueVisibility === PortValueVisibility.EDITABLE && document.activeElement === this.valueElement;
     }
 }
 

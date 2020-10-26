@@ -1,0 +1,28 @@
+{
+  "cancel"    : {"code": "Escape"},
+  "connect"   : {"key": "C"},
+  "undo"      : {"key": "Z", "ctrlKey": true},
+  "redo"      : [
+    {"key": "Y", "ctrlKey": true},
+    {"key": "Z", "ctrlKey": true, "shiftKey": true}
+  ],
+  "copy"      : {"key": "C", "ctrlKey": true},
+  "paste"     : {"key": "V", "ctrlKey": true},
+  "cut"       : {"key": "X", "ctrlKey": true},
+  "delete"    : [
+    {"code": "Backspace"},
+    {"code": "Delete"}
+  ],
+  "move-left" : {"code": "ArrowLeft", "ctrlKey":true},
+  "move-up"   : {"code": "ArrowUp", "ctrlKey":true},
+  "move-right": {"code": "ArrowRight", "ctrlKey":true},
+  "move-down" : {"code": "ArrowDown", "ctrlKey":true},
+  "zoom-in"   : {"key": "+"},
+  "zoom-out"  : {"key": "-"},
+  "view-left" : {"code": "ArrowLeft"},
+  "view-up"   : {"code": "ArrowUp"},
+  "view-right": {"code": "ArrowRight"},
+  "view-down" : {"code": "ArrowDown"},
+  "view-full" : {"key": "F"},
+  "save"      : {"key": "S", "ctrlKey": true}
+}

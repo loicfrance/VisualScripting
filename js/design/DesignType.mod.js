@@ -59,6 +59,14 @@ class DesignType extends FbpType {
             default : return string;
         }
     }
+    toJSON(key) {
+        if (key) {
+            return this.name;
+        } else return {
+            name: this.name,
+            color: this.color
+        };
+    }
 }
 class NumberDesignType extends DesignType {
     constructor({name, color}) {
@@ -79,6 +87,15 @@ class NumberDesignType extends DesignType {
             case 'char' : return parseInt(string) & 0xFF;
             case 'float' : return parseFloat(string);
             default : return this.parseFloat(string);
+        }
+    }
+    toJSON(key) {
+        const result = super.toJSON(key);
+        if(result.substr)
+            return result;
+        else {
+            result.category = 'number';
+            return result;
         }
     }
 }

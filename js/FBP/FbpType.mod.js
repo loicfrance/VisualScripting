@@ -15,6 +15,11 @@ class FbpType {
         this.name = name;
         this.inherited = inherited;
     }
+
+    /**
+     * @param {FbpType} type
+     * @return {boolean}
+     */
     inheritFrom(type) {
         if (type === this) //same type
             return true;
@@ -37,6 +42,14 @@ class FbpType {
         return this.inheritFrom(type);
     }
 
+    /**
+     * @param {*} object
+     * @param {FbpType} fromType
+     * @return {*}
+     */
+    cast(object, fromType) {
+        return object;
+    }
 }
 
 export default FbpType;
