@@ -1,0 +1,17 @@
+{
+  "lib-name": "Web-Debug",
+  "libraries": {
+    "core": {
+      "name": "Core library",
+      "dir": "./core/"
+    },
+    "math": {
+      "name": "Mathematics",
+      "dir": "./math/"
+    },
+    "web-debug": {
+      "name": "Web debug",
+      "dir": "./web-debug/"
+    }
+  }
+}

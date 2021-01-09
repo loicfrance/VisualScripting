@@ -1,13 +1,15 @@
-import {Vec2, Rect} from "../../../jsLibs_Modules/geometry2d/geometry2d.mod.js";
-import HistoryPile from "../../../jsLibs_Modules/utils/actionsHitory.mod.js";
-import {KeyMap, MouseButton} from "../../../jsLibs_Modules/utils/input.mod.js";
-import {loadString} from "../../../jsLibs_Modules/utils/tools.mod.js";
+
+import Vec2 from "../../../jslib/geometry2d/Vec2.mod.js";
+import Rect from "../../../jslib/geometry2d/Rect.mod.js";
+import HistoryPile from "../../../jslib/utils/actionsHitory.mod.js";
+import {KeyMap, MouseButton} from "../../../jslib/utils/input.mod.js";
+import {loadString, textFileUserDownload} from "../../../jslib/utils/tools.mod.js";
 import {FbpProcess} from "../FBP/FbpProcess.mod.js";
 import {FbpEventType} from "../FBP/FbpSheet.mod.js";
-import DesignProcess from "./DesignProcess.mod.js";
+import ConnectionDisplay, {ConnectionCreator} from "./ConnectionDisplay.mod.js";
 import DesignViewPort from "./DesignViewPort.mod.js";
-import DesignConnection, {ConnectionCreator, ConnectionsManager} from "./DesignConnection.mod.js";
 import {DesignAction, dragListener} from "./designUtils.mod.js";
+import ProcessDisplay from "./ProcessDisplay.mod.js";
 
 let shortcuts = loadString("assets/shortcuts.json").then(
     /** @param {string} text */
@@ -26,7 +28,6 @@ function JSONReplacer(key, value) {
 
     return value;
 }
-
 const processesMapSym = Symbol("Design processes map");
 const connectionsMapSym = Symbol("Design connections map");
 const fbpSheetSym = Symbol("FBP sheet");
@@ -34,13 +35,8 @@ const fbpListenerSym = Symbol("FBP events listener");
 
 const onProcessCreatedSym = Symbol();
 const onProcessDeletedSym = Symbol();
-const onProcessChangedSym = Symbol();
-const onPortCreatedSym = Symbol();
-const onPortDeletedSym = Symbol();
-const onPortChangedSym = Symbol();
 const onConnectionCreatedSym = Symbol();
 const onConnectionDeletedSym = Symbol();
-const onConnectionChangedSym = Symbol();
 
 const keyMapSym = Symbol("Keymap");
 const keyMapCallbackSym = Symbol("Keymap callback");
@@ -81,8 +77,9 @@ class DesignBoard {
     /**
      * @constructor
      * @param {HTMLDivElement} div
+     * @param {Object?} config
      */
-    constructor(div) {
+    constructor(div, config = undefined) {
         this.viewPort = new DesignViewPort(div, {
             maxRect: Rect.createFromCenterWidthHeight(Vec2.ZERO, 4000, 4000),
             minWidth: 200,
@@ -95,9 +92,7 @@ class DesignBoard {
 
         this[initDragSelectionSym]();
 
-        if(document.activeElement === document.body) {
-            this.globalDiv.focus();
-        }
+        //TODO config is unused. can store default style
     }
 
 //######################################################################################################################
@@ -119,11 +114,11 @@ class DesignBoard {
         return this[fbpSheetSym];
     }
 
-    /** @type {DesignProcess[]} */
-    get designProcesses() {
+    /** @type {ProcessDisplay[]} */
+    get processDisplays() {
         return [...this[processesMapSym].values()];
     }
-    get designConnections() {
+    get connectionDisplays() {
         return [...this[connectionsMapSym].values()];
     }
 //######################################################################################################################
@@ -131,9 +126,9 @@ class DesignBoard {
 //######################################################################################################################
     /**
      * @param {FbpProcess} process - Fbp process
-     * @return {undefined|DesignProcess}
+     * @return {undefined|ProcessDisplay}
      */
-    getDesignProcess(process) {
+    getProcessDisplay(process) {
         if(process instanceof FbpProcess) {
             return this[processesMapSym].get(process);
         } else {
@@ -143,37 +138,30 @@ class DesignBoard {
 
     /**
      * @param {FbpConnection} connection
-     * @return {undefined|DesignConnection}
+     * @return {undefined|ConnectionDisplay}
      */
-    getDesignConnection(connection) {
+    getConnectionDisplay(connection) {
         return this[connectionsMapSym].get(connection);
     }
-    getDesignConnections(designProcess) {
+    getConnectionDisplays(designProcess) {
         return [...this[connectionsMapSym].values()].filter(
             (c)=> c.startProcess === designProcess || c.endProcess === designProcess
         );
     }
     [onProcessCreatedSym](process) {
-        const dp = new DesignProcess(this, process);
-        this[processesMapSym].set(process, dp);
-        dp.elmt.addEventListener('mousedown', this[dragListenerSym]);
+        const pd = new ProcessDisplay(this, process);
+
+        this[processesMapSym].set(process, pd);
+        pd.elmt.addEventListener('mousedown', this[dragListenerSym]);
     }
-    [onProcessChangedSym](process) { this.getDesignProcess(process).update(this); }
     [onProcessDeletedSym](process) {
-        this.getDesignProcess(process).onFbpProcessDeleted(this);
         this[processesMapSym].delete(process);
     }
 
-    [onPortCreatedSym](port) { this.getDesignProcess(port.process).onFbpPortCreated(port); }
-    [onPortChangedSym](port) { this.getDesignProcess(port.process).onFbpPortChanged(port); }
-    [onPortDeletedSym](port) { this.getDesignProcess(port.process).onFbpPortDeleted(port); }
-
     [onConnectionCreatedSym](connection) {
-        this[connectionsMapSym].set(connection, new DesignConnection(this, connection));
+        this[connectionsMapSym].set(connection, new ConnectionDisplay(this, connection));
     }
-    [onConnectionChangedSym](connection) { this.getDesignConnection(connection).update(); }
     [onConnectionDeletedSym](connection) {
-        this.getDesignConnection(connection).onFbpConnectionDeleted(this);
         this[connectionsMapSym].delete(connection);
     }
 
@@ -187,13 +175,8 @@ class DesignBoard {
             switch(evtType) {
                 case FbpEventType.PROCESS_CREATED       : this[onProcessCreatedSym](object); break;
                 case FbpEventType.PROCESS_DELETED       : this[onProcessDeletedSym](object); break;
-                case FbpEventType.PROCESS_CHANGED       : this[onProcessChangedSym](object); break;
-                case FbpEventType.PORT_CREATED          : this[onPortCreatedSym](object); break;
-                case FbpEventType.PORT_DELETED          : this[onPortDeletedSym](object); break;
-                case FbpEventType.PORT_CHANGED          : this[onPortChangedSym](object); break;
                 case FbpEventType.CONNECTION_CREATED    : this[onConnectionCreatedSym](object); break;
                 case FbpEventType.CONNECTION_DELETED    : this[onConnectionDeletedSym](object); break;
-                case FbpEventType.CONNECTION_CHANGED    : this[onConnectionChangedSym](object); break;
                 default : throw Error("unknown event : " + evtType);
             }
         });
@@ -211,11 +194,11 @@ class DesignBoard {
                 this.cancelAction();
                 break;
             case "connect"      : break;
-            case "undo"         : break;
-            case "redo"         : break;
-            case "copy"         : break;
-            case "paste"        : break;
-            case "cut"          : break;
+            case "undo"         : this.undo(); break;
+            case "redo"         : this.redo(); break;
+            case "copy"         : this.copySelected(); break;
+            case "paste"        : this.pasteSelected(); break;
+            case "cut"          : this.copySelected(); this.deleteSelected(); break;
             case "delete"       : this.deleteSelected(); break;
             case "move-left"    : break;
             case "move-up"      : break;
@@ -229,7 +212,9 @@ class DesignBoard {
             case "view-down"    : break;
             case "view-full"    : break;
             case "save"         :
-                console.log(JSON.stringify(this.fbpSheet.toJSON(), JSONReplacer));
+                textFileUserDownload(
+                    JSON.stringify(this.fbpSheet.exportJSON(), JSONReplacer),
+                    "sheet.json");
                 evt.preventDefault();
                 break;
             default : break;
@@ -250,7 +235,7 @@ class DesignBoard {
         this.globalDiv.addEventListener('mousedown', dragListener.bind(this, {
             onStart: (evt, pos) => {
                 if(evt.target !== this.globalDiv) return false;
-                this.pixelToDesignCoordinatesTransform(pos, startPos);
+                this.viewPort.pageToDesignCoordinatesTransform(pos.x, pos.y, startPos);
                 shiftKey = evt.shiftKey || evt.ctrlKey;
                 if(!(shiftKey))
                     this.clearSelection();
@@ -259,7 +244,7 @@ class DesignBoard {
             onMove: (evt, pos)=> {
                 const selectionRect = Rect.createFromPoints([startPos,
                     this.viewPort.pageToDesignCoordinatesTransform(pos.x, pos.y)]);
-                const processes = this.designProcesses.filter(p => p.isInRect(selectionRect));
+                const processes = this.processDisplays.filter(p => p.isInRect(selectionRect));
                 this.viewPort.showSelectionRect(selectionRect);
                 if (shiftKey)
                     this.select(...processes);
@@ -312,7 +297,7 @@ class DesignBoard {
     }
 
     /**
-     * @param {DesignPort} port
+     * @param {PortDisplay} port
      * @param {MouseEvent} evt
      */
     onPortBulletMouseEvent(port, evt) {
@@ -326,7 +311,6 @@ class DesignBoard {
 //#                                                      ACTIONS                                                       #
 //######################################################################################################################
     /**
-     *
      * @param {DesignAction} action
      */
     startAction(action) {
@@ -454,8 +438,20 @@ class DesignBoard {
         });
         this[actionsHistorySym].push({
             type: DesignAction.DELETE_SELECTED,
-            objects: this.selected, // TODO maybe use JSON instead of deleted objects
+            objects: this.selected, // TODO use JSON instead of deleted objects
         });
+    }
+
+//######################################################################################################################
+//#                                                       EDITOR                                                       #
+//######################################################################################################################
+    /**
+     * @param {ProcessDisplay} process
+     */
+    showProcessEditor(process) {
+        const editHTML = process.editHTML;
+        //TODO display on right panel
+        console.log("edit process " + process.fbpProcess.toString());
     }
 
     /**
@@ -463,6 +459,10 @@ class DesignBoard {
      */
     pixelToDesignCoordinatesTransform(pixel, out = Vec2.zero) {
         return this.viewPort.pageToDesignCoordinatesTransform(pixel.x, pixel.y, out);
+    }
+
+    focus() {
+        this.globalDiv.focus();
     }
 }
 

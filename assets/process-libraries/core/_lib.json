@@ -1,0 +1,35 @@
+{
+  "lib-name": "core",
+  "processes": {
+    "variable": {
+      "name": "variable",
+      "src": "./variable.js"
+    },
+    "sheet-port": {
+      "name": "sheet port",
+      "src": "./sheet-port.js"
+    },
+    "packet-set":{
+      "name": "packet set",
+      "src": "./packet-set.js"
+    },
+    "packet-get":{
+      "name": "packet get",
+      "src": "./packet-get.js"
+    },
+    "route": {
+      "name": "route",
+      "src": "./route.js"
+    },
+    "node": {
+      "name": "connection node",
+      "src": "./node.js"
+    }
+  },
+  "types": {
+    "base-types": {
+      "name": "base types",
+      "src": "./types.js"
+    }
+  }
+}

@@ -1,0 +1,34 @@
+{
+  "id": "math",
+  "name": "Mathematics",
+  "processes": {
+    "trigonometry": {
+      "name": "Trigonometric function",
+      "src": "./trigo.js"
+    },
+    "op2": {
+      "name": "+/-/\u00d7/\u00f7/\u2026",
+      "src": "./op2.js"
+    },
+    "op1": {
+      "name": "|x|/e/ln/\u221a",
+      "src": "./op1.js"
+    },
+    "compare": {
+      "name": "</>/\u2264/\u2265/=",
+      "src": "./compare.js"
+    },
+    "binary": {
+      "name": "~/<</>>/&/|",
+      "src": "./binary.js"
+    },
+    "array_op": {
+      "name": "\u2211/\u220f/max/\u2026",
+      "src": "./opN.js"
+    },
+    "prng": {
+      "name": "random",
+      "src": "./prng.js"
+    }
+  }
+}

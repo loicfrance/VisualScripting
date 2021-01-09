@@ -1,72 +1,77 @@
-import {PRNG} from "../../../jsLibs_Modules/utils/tools.mod.js";
-import {PortValueVisibility} from "../design/DesignPort.mod.js";
-import {FbpPassivePort, FbpPacketPort, FbpPortDirection, FbpPassivePassThroughPort} from "./FbpPort.mod.js";
+import {PRNG} from "../../../jslib/utils/tools.mod.js";
+import FbpObject from "./FbpObject.mod.js";
+import FbpPort, {FbpPortDirection as PORT_DIR, FbpPortDirection} from "./FbpPort.mod.js";
 
 const inputPortsSym = Symbol("Input ports list");
 const outputPortsSym = Symbol("Output ports list");
 const idSym = Symbol("Process id");
 const sheetSym = Symbol("Fbp sheet holding this process");
 const nameSym = Symbol("Process name");
-const additionalInformationSym = Symbol("additional information");
 
-const Random = new PRNG(0);
+const handlerNameSym = Symbol("Process Handler name");
+const handlerSym = Symbol("Process Handler");
 
-function generateProcessId(fbpSheet, id = Random.next())
-{
-    let nb_tries = 1000;
-    while(nb_tries > 0 && fbpSheet.isProcessIdTaken(id)) {
-        id = Random.next();
-        nb_tries--;
-    }
-    if(nb_tries === 0 && fbpSheet.isProcessIdTaken(id)) {
-        throw Error("Impossible to create an id that is not already taken");
-    }
-    return id
+/**
+ * @enum
+ */
+const FbpProcessChangeReason = {
+    SORT_PORTS: "ports_sort",
+    PORT_CREATED: "port_created", // arguments: [created port]
+    PORT_CHANGED: "port_changed", // arguments: [changed port]
+    PORT_DELETED: "port_deleted", // arguments: [deleted port]
 }
 
-
-class FbpProcess {
+class FbpProcess extends FbpObject {
     /** @type {FbpSheet} */
     [sheetSym];
     /** @type {string} */
     [nameSym];
     /** @type {number} */
     [idSym];
+    /** @type {string} */
+    [handlerNameSym];
+    /** @type {FbpProcessHandler} */
+    [handlerSym];
     /** @type {FbpPort[]} */
     [inputPortsSym] = [];
     /** @type {FbpPort[]} */
     [outputPortsSym] = [];
 
-    [additionalInformationSym] = new Map();
-
     /**
      * @constructor
      * @param {FbpSheet} fbpSheet
-     * @param {Object} attributes
-     * @param {string} attributes.name
-     * @param {number?} attributes.id
-     * @param {...Object?} portAttributes
+     * @param {Object} config
+     * @param {string} config.name
+     * @param {number} [config.id]
+     * @param {string} config.handler
+     * @param {Object} [config.parameters]
+     * @param {...Object} [config.attributes]
+     * @param {...Object} [portAttributes]
      * @param {string} portAttributes.name
-     * @param {boolean?} portAttributes.active
      * @param {FbpType} portAttributes.type
-     * @param {number?} portAttributes.id
+     * @param {FbpPortDirection} portAttributes.direction
+     * @param {boolean} [portAttributes.passive=false]
+     * @param {boolean} [portAttributes.passThrough=false]
      */
-    constructor(fbpSheet, attributes, ...portAttributes) {
+    constructor(fbpSheet, config,
+                ...portAttributes) {
+        const {name, id, handler, parameters = {}, ...attributes} = config;
+        super(attributes);
         this[sheetSym] = fbpSheet;
-        this[nameSym] = attributes.name;
-        this[idSym] = generateProcessId(fbpSheet, attributes.hasOwnProperty('id') ? attributes.id : Random.next());
+        this[nameSym] = name;
+        this[idSym] = fbpSheet.generateProcessId(isNaN(id) ? NaN : id);
+        if(!handler || !(handler.substr))
+            throw Error("handler full name is necessary to create FBP process");
+        if(!fbpSheet.libLoader.isHandlerLoaded(handler))
+            throw Error(`handler ${handler} needs to be loaded before calling constructor`);
+        this[handlerNameSym] = handler;
+        this[handlerSym] = fbpSheet.libLoader.getLoadedHandler(handler);
         fbpSheet.onProcessCreated(this);
-        // noinspection JSCheckFunctionSignatures
-        for(const [key, value] of Object.entries(attributes)) {
-            if(key !== 'name' && key !== 'id') {
-                this.setInfo(key, value);
-            }
-        }
-        if (portAttributes !== undefined) {
-            for (const attrs in portAttributes) {
-                this.createPort(attrs)
-            }
-        }
+        if (portAttributes)
+            this.createPorts(...portAttributes);
+
+        if (this.handler.onCreate)
+            this.handler.onCreate.call(this, parameters);
     }
 
 //######################################################################################################################
@@ -86,16 +91,18 @@ class FbpProcess {
     }
     set name(value) {
         this[nameSym] = value;
-        this.sheet.onProcessChanged(this);
+        this.notifyChange('name');
     }
-    // noinspection JSUnusedGlobalSymbols
-    get deleted() {
-        return this.sheet === undefined;
+    /** @type {FbpProcessHandler} */
+    get handler() {
+        return this[handlerSym] || {};
+    }
+    get handlerName() {
+        return this[handlerNameSym];
     }
     get inputSize() {
         return this[inputPortsSym].length;
     }
-    // noinspection JSUnusedGlobalSymbols
     get outputSize() {
         return this[outputPortsSym].length;
     }
@@ -105,12 +112,15 @@ class FbpProcess {
 //######################################################################################################################
 
     /**
-     * @param name
-     * @param direction
-     * @return {FbpPacketPort|FbpPassivePort|undefined}
+     * @param {string} name
+     * @param {FbpPortDirection|string} [direction]
+     * @return {FbpPort|undefined}
      */
     getPort(name, direction = FbpPortDirection.UNKNOWN) {
         let list;
+        if (direction.substr)
+            direction = FbpPortDirection.fromString(direction);
+
         switch(direction) {
             case FbpPortDirection.UNKNOWN :
                 return this.getPort(name, FbpPortDirection.IN) || this.getPort(name, FbpPortDirection.OUT);
@@ -120,17 +130,20 @@ class FbpProcess {
         }
         return list.find(p=>p.name === name);
     }
-
+    /**
+     * @param {Object} attributes - see {@link FbpPort.constructor} constructor for parameters details
+     * @return {FbpPort} created port
+     */
     createPort(attributes) {
-        const passive = attributes.passive;
-        const passThrough = attributes.passThrough;
-        if (!passive && attributes.passThrough)
-            throw new Error("Cannot create active pass-through ports");
-        delete(attributes.passive);
-        delete(attributes.passThrough);
-        return passive ?
-            (passThrough ? new FbpPassivePassThroughPort(this, attributes) : new FbpPassivePort(this, attributes))
-            : new FbpPacketPort(this, attributes);
+        return new FbpPort(this, attributes);
+    }
+    /**
+     * @param {Object...} attributes - see {@link FbpPort.constructor} constructor for parameters details
+     */
+    createPorts(...attributes) {
+        for (const attrs of attributes) {
+            this.createPort(attrs)
+        }
     }
 
     // noinspection JSUnusedGlobalSymbols
@@ -145,18 +158,18 @@ class FbpProcess {
     clearPorts() {
         let i = this[inputPortsSym].length;
         while(i--)
-            this[inputPortsSym][i].delete();
+            this.deletePort(this[inputPortsSym][i]);
 
         i = this[outputPortsSym].length;
         while(i--)
-            this[outputPortsSym][i].delete();
+            this.deletePort(this[outputPortsSym][i]);
 
         if(this[inputPortsSym].length > 0 || this[outputPortsSym].length > 0)
             throw Error("Error when removing ports");
     }
     /**
      * @param index
-     * @return {FbpPacketPort|FbpPacketPort}
+     * @return {FbpPort}
      */
     getInputPort(index) {
         return this[inputPortsSym][index];
@@ -164,7 +177,7 @@ class FbpProcess {
 
     /**
      * @param index
-     * @return {FbpPacketPort|FbpPacketPort}
+     * @return {FbpPort}
      */
     getOutputPort(index) {
         return this[outputPortsSym][index];
@@ -172,24 +185,26 @@ class FbpProcess {
     // noinspection JSUnusedGlobalSymbols
     sortInputPorts(compareFn) {
         this[inputPortsSym].sort(compareFn);
-        this.sheet.onProcessChanged(this);
+        this.notifyChange(FbpProcessChangeReason.SORT_PORTS, PORT_DIR.IN);
     }
     // noinspection JSUnusedGlobalSymbols
     sortOutputPorts(compareFn) {
         this[outputPortsSym].sort(compareFn);
-        this.sheet.onProcessChanged(this);
+        this.notifyChange(FbpProcessChangeReason.SORT_PORTS, PORT_DIR.OUT);
     }
     // noinspection JSUnusedGlobalSymbols
     sortPorts(compareFn) {
         this[inputPortsSym].sort(compareFn);
         this[outputPortsSym].sort(compareFn);
-        this.sheet.onProcessChanged(this);
     }
 
     /**
-     * @param {FbpPassivePassThroughPort} port
+     * @param {FbpPort} port
+     * @return {any}
      */
     getPassThroughValue(port) {
+        if (this.handler.getPassThroughValue)
+            return this.handler.getPassThroughValue.call(this, port.name);
         return undefined;
     }
 //######################################################################################################################
@@ -198,7 +213,7 @@ class FbpProcess {
 
     onPortCreated(port) {
         this[port.input ? inputPortsSym : outputPortsSym].push(port);
-        this.sheet.onPortCreated(port);
+        this.notifyChange(FbpProcessChangeReason.PORT_CREATED, port);
     }
 
     onPortDeleted(port) {
@@ -208,10 +223,15 @@ class FbpProcess {
             this[port.input ? inputPortsSym : outputPortsSym].splice(idx, 1);
         else
             throw Error("this port does not belong to this process");
-        this.sheet.onPortDeleted(port);
+        this.notifyChange(FbpProcessChangeReason.PORT_DELETED, port);
     }
-    onPortChanged(port) {
-        this.sheet.onPortChanged(port);
+    onPortChanged(port, key, ...params) {
+        this.notifyChange(FbpProcessChangeReason.PORT_CHANGED, port, key, ...params);
+    }
+    notifyChange(...args) {
+        super.notifyChange(...args);
+        if (this.handler.onChange)
+            this.handler.onChange.call(this, ...args);
     }
 
 //######################################################################################################################
@@ -219,70 +239,63 @@ class FbpProcess {
 //######################################################################################################################
 
     exportJSON() {
-        const obj = {
+        return {
             id: this.id,
-            name: this.name
+            name: this.name,
+            ...super.exportJSON(),
+            handler: this.handlerName, //TODO
+            parameters: (this.handler.exportJSON ? this.handler.exportJSON.call(this) : {}),
+            /*
+            ports: [
+                ...this[inputPortsSym].map(p=> p.exportJSON()),
+                ...this[outputPortsSym].map(p=> p.exportJSON())
+            ]
+            */
         };
-        Object.assign(obj, Object.fromEntries(this[additionalInformationSym].entries()));
-        obj.ports = [...this[inputPortsSym].map(p=> p.exportJSON()), ...this[outputPortsSym].map(p=> p.exportJSON())];
-        return obj;
     }
-    // noinspection JSUnusedGlobalSymbols
-    static fromJSON(object) {
-        const process = new FbpProcess(object.name, object.id);
-        if(object.ports && Array.isArray(object.ports))
-            object.ports.forEach(p => process.createPort(p));
+
+    static async fromJSON(fbpSheet, object) {
+        const {id, name, handler, parameters, ...attrs/*, ports*/} = object;
+        await fbpSheet.libLoader.loadHandler(handler);
+        // noinspection UnnecessaryLocalVariableJS
+        const process = new FbpProcess(fbpSheet,
+            {name, id, handler, parameters, ...attrs},
+            /*...ports*/);
+        /*
+        if(ports && Array.isArray(ports))
+            ports.forEach(p => process.createPort(p));
+        */
+        return process;
     }
 
     exportOperation() {
+        //TODO ask handler
         return ""
     }
 
 //######################################################################################################################
-//#                                               ADDITIONAL INFORMATION                                               #
+//#                                               ADDITIONAL ATTRIBUTES                                                #
 //######################################################################################################################
 
-    /**
-     * @param {*} key
-     * @param {*} value
-     */
-    setInfo(key, value) {
-        if (key in ["name", "id"])
-            throw Error("additional information cannot use the reserved keys 'name' or 'id'.");
-        if (value !== this.getInfo(key)) {
-            this[additionalInformationSym].set(key, value);
-            this.sheet.onProcessChanged(this);
-        }
+    setAttr(key, value) {
+        if (super.setAttr(key, value)) {
+            this.notifyChange();
+            return true;
+        } else
+            return false
     }
 
-    /**
-     * @param {*} key
-     */
-    deleteInfo(key) {
-        if (key in this[additionalInformationSym]) {
-            this[additionalInformationSym].delete(key);
-            this.sheet.onProcessChanged(this);
-        }
+    deleteAttr(key) {
+        if (super.deleteAttr(key)) {
+            this.notifyChange();
+            return true;
+        } else
+            return false
     }
-
-    /**
-     * @param {*} key
-     * @param {*} defaultValue?
-     * @return {*}
-     */
-    getInfo(key, defaultValue = undefined) {
-        if (this[additionalInformationSym].has(key))
-            return this[additionalInformationSym].get(key);
-        else
-            return defaultValue;
-    }
-
-    // noinspection JSUnusedGlobalSymbols
-    /**
-     * @return {*[]}
-     */
-    getAllInfoKeys() {
-        return this[additionalInformationSym].keys();
+    getReservedKeys() {
+        return super.getReservedKeys().concat([
+            'name', 'id', 'ports',
+        ]);
     }
 
 //######################################################################################################################
@@ -291,41 +304,25 @@ class FbpProcess {
 
     delete() {
         this.clearPorts();
-        const sheet = this.sheet;
-        this[sheetSym] = undefined;
-        sheet.onProcessDeleted(this);
+        if(this.handler.onDestroy)
+            this.handler.onDestroy.call(this)
+        super.delete();
+        this.sheet.onProcessDeleted(this);
     }
 
+    /**
+     *
+     * @param {FbpPort} inputPort
+     * @param {*} msg
+     */
     handlePacket(inputPort, msg) {
-        // do nothing by default
+        if(this.handler.onPacket)
+            this.handler.onPacket.call(this, inputPort.name, msg)
     }
 
     toString() {
         return `${this.name}[${this.id.toString(16)}]`;
     }
 }
-
-class FbpSheetPortProcess extends FbpProcess {
-
-
-    /**
-     * @param {...Object} inputs
-     * @param {string} inputs.name
-     * @param {*} inputs.value
-     */
-    updateFromSheetInputs(...inputs) {
-        const activePorts = [];
-        inputs.forEach(({name, value}) => {
-            const port = this.getPort(name);
-            if (port.passive)
-                port.value = value;
-            else
-                activePorts.push({port:port, packet:value})
-        });
-        activePorts.forEach(({port, packet})=> {
-            port.send(packet);
-        });
-    }
-}
-
-export {FbpProcess};
+export default FbpProcess;
+export {FbpProcess, FbpProcessChangeReason};

@@ -1,8 +1,10 @@
 import {FbpPassivePassThroughPort, FbpPortDirection} from "../FBP/fbp.mod.js";
 import {FbpProcess} from "../FBP/FbpProcess.mod.js";
-import {PortValueVisibility} from "./DesignPort.mod.js";
-import {typesTable} from "./DesignType.mod.js";
-import Vec2 from "../../../jsLibs_Modules/geometry2d/Vec2.mod.js"
+import {FbpCalculationProcess, Operator} from "../FBP/process-lib/FbpCalculationProcess.mod.js";
+import {Visibility} from "./DesignPort.mod.js";
+import DesignProcess from "./DesignProcess.mod.js";
+//import {typesTable} from "./DesignType.mod.js";
+import Vec2 from "../../../jslib/geometry2d/Vec2.mod.js"
 
 
 class UserConstantProcess extends FbpProcess {
@@ -11,7 +13,7 @@ class UserConstantProcess extends FbpProcess {
      * @param {FbpSheet} fbpSheet
      * @param {Object} attributes
      * @param {string} attributes.name
-     * @param {DesignType|string} attributes.type
+     * @param {string} attributes.type
      * @param {*?} attributes.baseValue
      * @param {Vec2} attributes.position
      * @param {string?} attributes.color
@@ -21,21 +23,14 @@ class UserConstantProcess extends FbpProcess {
         if(!attributes.hasOwnProperty('color'))
             attributes.color = '#800';
 
-        let type, baseValue;
+        let {type, baseValue, ...attrs} = attributes;
 
-        if(attributes.hasOwnProperty('type')) {
-            type = attributes.type.substr ? typesTable[attributes.type] : attributes.type;
-            delete (attributes.type);
-        } else type = typesTable["any"];
+        if(!type) type = "any";
+        if (!baseValue) baseValue = fbpSheet.getType(type).defaultValue;
 
-        if(attributes.hasOwnProperty('baseValue')) {
-            baseValue = attributes.baseValue;
-            delete (attributes.baseValue);
-        } else baseValue = type.defaultValue;
-
-        super(fbpSheet, attributes);
+        super(fbpSheet, attrs);
         this.createPort({name: 'value', type: type, direction: FbpPortDirection.OUT, passive: true,
-            valueVisibility: PortValueVisibility.EDITABLE, hideName: true, defaultValue: baseValue});
+            valueVisibility: Visibility.EDITABLE, hideName: true, defaultValue: baseValue});
     }
     exportOperation() {
         let result = "";
@@ -44,137 +39,94 @@ class UserConstantProcess extends FbpProcess {
         }
     }
 }
+
 class UserPacketLauncherProcess extends FbpProcess {
     constructor(fbpSheet, attributes) {
-        if(!attributes.hasOwnProperty('color'))
+        let {color, type, ...attrs} = attributes;
+        if(!color)
             attributes.color = '#D30';
 
-        let type;
-
-        if(attributes.hasOwnProperty('type')) {
-            type = attributes.type.substr ? typesTable[attributes.type] : attributes.type;
-            delete (attributes.type);
-        } else type = typesTable["void"];
+        if(type)
+            type = "void";
 
         const button = document.createElement('button');
         button.textContent = "=>";
-        attributes.operationHTML = button;
-        super(fbpSheet, attributes);
+        attrs.operationHTML = button;
+        super(fbpSheet, attrs);
         this.createPort({name: 'fire', type, direction: FbpPortDirection.OUT, passive: false, hideName: true});
         this.button = button;
         this.button.onclick = () => { this.getPort('fire', FbpPortDirection.OUT).send(this.packet); };
     }
     get packet() {
-        return this.getInfo('packet');
+        return this.getAttr('packet');
     }
     set packet(value) {
-        this.setInfo('packet', value);
+        this.setAttr('packet', value);
     }
 }
 
-class Operator {
-    /** @type {string} */
-    name;
-    /** @type {number} */
-    nb_in;
-    /** @type {number} */
-    nb_in_min;
-    /** @type {number} */
-    nb_in_max;
-    /** @type {number} */
-    nb_out;
-    /** @type {Array<FbpType>} */
-    in_types;
-    /** @type {FbpType} */
-    out_type;
-    /** @type {string|function(nb_in:number):string} */
-    descriptor;
-    /** @type {function(*|...*):(*|[])} */
-    operation;
+/**
+ * TODO
+ */
+class DesignSheetPortsProcess extends DesignProcess {
 
-    /**
-     * @param {Object} parameters
-     * @param {string} parameters.name - name of the operator. Used to give a title to the process
-     * @param {number} parameters.nb_in - default number of input. If left undefined (or NaN), takes the value of nb_in_max if not undefined or Infinity.
-     * @param {number} parameters.nb_in_min - minimum number of inputs. If left undefined (or NaN), takes the value of nb_in
-     * @param {number} parameters.nb_in_max - maximum number of inputs. If undefined but nb_in_min is defined, takes the value Infinity. If both are undefined, takes the value nb_in
-     * @param {FbpType|FbpType[]} parameters.in_type - type(s) of the input ports
-     * @param {FbpType} parameters.out_type - type of the output port
-     * @param {string|function(nb_in:number):string} parameters.descriptor - fills the center area of the process.
-     * @param {function(*|...*):(*)} parameters.operation - function taking input values and outputting theresults
-     */
-    constructor({
-                    name = "",
-                    nb_in_min = NaN,
-                    nb_in_max = NaN,
-                    nb_in = NaN,
-                    in_type = typesTable['number'],
-                    out_type = typesTable['number'],
-                    descriptor = undefined,
-                    operation = undefined
-                }) {
-        this.name = name;
-        if(Number.isNaN(nb_in)) {
-            if(Number.isNaN(nb_in_min) && Number.isNaN(nb_in_max))
-                throw new Error("missing input size");
-            this.nb_in = Math.round(Number.isFinite(nb_in_max) ? nb_in_max : nb_in_min);
-        } else
-            this.nb_in = nb_in;
-        this.nb_in_min = Math.round(Number.isNaN(nb_in_min) ? nb_in : nb_in_min);
-        this.nb_in_max = Math.round(Number.isNaN(nb_in_max) ? Number.isNaN(nb_in_min) ? nb_in : Infinity : nb_in_max);
-        if(this.nb_in < this.nb_in_min || this.nb_in > this.nb_in_max) {
-            throw new Error("input size out of range");
+    constructor(board, fbpProcess) {
+        if (!(fbpProcess instanceof FbpCalculationProcess))
+            throw Error(`can only accept FbpCalculationProcesses. ${fbpProcess} is not valid`);
+        super(board, fbpProcess);
+    }
+}
+
+//class Operator
+class OperationDesignProcess extends DesignProcess {
+
+    constructor(board, fbpProcess) {
+        if (!(fbpProcess instanceof FbpCalculationProcess))
+            throw Error(`can only accept FbpCalculationProcesses. ${fbpProcess} is not valid`);
+        if (fbpProcess.getAttr("color") === undefined)
+            fbpProcess.setAttr("color", "#080");
+        if (fbpProcess.getAttr("hideName") === undefined)
+            fbpProcess.setAttr("hideName", true);
+        if (fbpProcess.getAttr("operationHTML") === undefined) {
+            const operationHTML = document.createElement('span');
+            operationHTML.style.userSelect = 'none';
+            operationHTML.style.height = 'calc(var(--process-title-font-size) * 2)';
+            operationHTML.style.lineHeight = 'calc(var(--process-title-font-size) * 2)';
+            operationHTML.style.fontSize = 'calc(var(--process-title-font-size) * 2)';
+            fbpProcess.setAttr("operationHTML", operationHTML);
         }
-        this.in_types = Array.isArray(in_type) ? in_type : [in_type];
-        this.out_type = out_type;
-        this.descriptor = descriptor;
-        this.operation = operation;
+        let i = fbpProcess.inputSize;
+        while(i--) {
+            const port = fbpProcess.getInputPort(i);
+            if (port.getAttr('valueVisibility') === undefined)
+                port.setAttr('valueVisibility', Visibility.HIDDEN);
+            if (port.getAttr('hideName') === undefined)
+                port.setAttr('hideName', true);
+        }
+        i = fbpProcess.outputSize;
+        while(i--) {
+            const port = fbpProcess.getOutputPort(i);
+            if (port.getAttr('valueVisibility') === undefined)
+                port.setAttr('valueVisibility', Visibility.HIDDEN);
+            if (port.getAttr('hideName') === undefined)
+                port.setAttr('hideName', true);
+        }
+        super(board, fbpProcess);
     }
-    getInputType(index) {
-        return this.in_types[index >= this.in_types.length ? this.in_types.length-1 : index];
+    onFbpPortCreated(port) {
+        super.onFbpPortCreated(port);
+        const opDisplay = this.fbpProcess.getAttr('operationHTML');
+        opDisplay.textContent = this.fbpProcess.operator.getDescription(this.inputSize);
+        this.fbpProcess.setAttr('operationHTML', opDisplay);
     }
-    getOutputType() {
-        return this.out_type;
+    onFbpPortDeleted(port) {
+        super.onFbpPortDeleted(port);
+        const opDisplay = this.fbpProcess.getAttr('operationHTML');
+        opDisplay.textContent = this.fbpProcess.operator.getDescription(this.inputSize);
+        this.fbpProcess.setAttr('operationHTML', opDisplay);
     }
-    getDescription(nb_inputs) {
-        return this.descriptor instanceof Function ? this.descriptor(nb_inputs) : this.descriptor;
-    }
-    operate(...inputs) {
-        return this.operation(...inputs);
-    }
-    static SUM = new Operator({name: "sum", nb_in_min: 2, descriptor: (n)=> n===2 ? '+' : '\u2211',
-                                operation: (...x)=> x.reduce((r,v)=>r+v)});
-    static SUBTRACTION = new Operator({name: "subtraction", nb_in_min: 1, nb_in_max: 2, descriptor: '-',
-                                operation: (a,b=NaN)=> Number.isNaN(b) ? -a : a-b});
-    static PRODUCT = new Operator({name: "product", nb_in_min: 2, descriptor: (n)=> n===2 ? '\u00D7' : '\u220f',
-                                operation: (...x)=> x.reduce((r,v)=>r*v)});
-    static DIVISION = new Operator({name: "division", nb_in: 2, descriptor: '\u00f7', operation: (a,b)=>a/b});
-    static MODULO = new Operator({name: "modulo", nb_in: 2, descriptor: '%', operation: (a,b)=>a%b});
-    static SQRT = new Operator({name: "square root", nb_in: 1, descriptor: '\u221a', operation: Math.sqrt});
-    static MAX = new Operator({name: 'maximum', nb_in_min: 2, descriptor: 'max', operation: Math.max});
-    static MIN = new Operator({name: 'minimum', nb_in_min: 2, descriptor: 'min', operation: Math.min});
-    static LEFT_SHIFT = new Operator({name: "bitwise left shift", nb_in: 2, descriptor: '<<', operation: (a,b)=>a<<b});
-    static RIGHT_SHIFT = new Operator({name: "bitwise right shift", nb_in: 2, descriptor: '>>', operation: (a,b)=>a>>b});
-    static BITWISE_NOT = new Operator({name: "bitwise NOT", nb_in: 1, descriptor: '~', operation: (x)=>~x});
-    static BITWISE_AND = new Operator({name: "bitwise AND", nb_in_min : 2, descriptor: '\u22C0',
-                                operation: (...x)=> x.reduce((r,v)=>r&v)});
-    static BITWISE_OR = new Operator({name: "bitwise OR", nb_in_min: 2, descriptor: '\u22C1',
-                                operation: (...x)=> x.reduce((r,v)=>r|v)});
-    static BITWISE_XOR = new Operator({name: "bitwise EXCLUSIVE OR (XOR)", nb_in_min: 2, descriptor: '\u2295',
-                                operation: (...x)=> x.reduce((r,v)=>r^v)});
-    static LOWER = new Operator({name: "lower than", nb_in: 2, descriptor : '<', operation: (a,b)=>a<b});
-    static GREATER = new Operator({name: "greater than", nb_in: 2, descriptor : '>', operation: (a,b)=>a>b});
-    static LOWER_EQUAL = new Operator({name: "lower or equal than", nb_in: 2, descriptor : '\u2264', operation: (a,b)=>a<=b});
-    static GREATER_EQUAL = new Operator({name: "greater or equal than", nb_in: 2, descriptor : '\u2265', operation: (a,b)=>a>=b});
-    static EQUAL = new Operator({name: "equal", nb_in: 2, descriptor : '=', operation: (a,b)=>a===b});
-    static DIFFERENT = new Operator({name: "different", nb_in: 2, descriptor : '\u2260', operation: (a,b)=>a!==b});
-    static LOGIC_AND = new Operator({name: "logical AND", nb_in_min: 2, descriptor : 'AND',
-                                operation: (...x)=> x.reduce((r,v)=>r&&v)});
-    static LOGIC_OR = new Operator({name: "logical OR", nb_in_min: 2, descriptor : 'OR',
-                                operation: (...x)=> x.reduce((r,v)=>r||v)});
-    static LOGIC_NOT = new Operator({name: "logical OR", nb_in: 1, descriptor : 'NOT', operation: x=>!x});
 }
-
+/*
 class OperationProcess extends FbpProcess {
     constructor(fbpSheet, attributes) {
         if(!attributes.hasOwnProperty('color'))
@@ -190,6 +142,7 @@ class OperationProcess extends FbpProcess {
 
         super(fbpSheet, attributes);
 
+
         //this.createPort({name: 'activate', type: typesTable['void'], direction: FbpPortDirection.IN , passive: false, hideName: true});
         //this.createPort({name: 'done'    , type: typesTable['void'], direction: FbpPortDirection.OUT, passive: false, hideName: true});
 
@@ -203,24 +156,21 @@ class OperationProcess extends FbpProcess {
             valueVisibility: PortValueVisibility.HIDDEN, hideName: true});
     }
     get operator() {
-        return this.getInfo('operator');
+        return this.getAttr('operator');
     }
     onPortCreated(port) {
         super.onPortCreated(port);
-        const opDisplay = this.getInfo('operationHTML');
+        const opDisplay = this.getAttr('operationHTML');
         opDisplay.textContent = this.operator.getDescription(this.inputSize);
-        this.setInfo('operationHTML', opDisplay);
+        this.setAttr('operationHTML', opDisplay);
     }
     onPortDeleted(port) {
         super.onPortDeleted(port);
-        const opDisplay = this.getInfo('operationHTML');
+        const opDisplay = this.getAttr('operationHTML');
         opDisplay.textContent = this.operator.getDescription(this.inputSize);
-        this.setInfo('operationHTML', opDisplay);
+        this.setAttr('operationHTML', opDisplay);
     }
 
-    /**
-     * @param {FbpPassivePassThroughPort} port
-     */
     getPassThroughValue(port) {
         if(port.name !== "out")
             throw new Error("Output port name ofr operator must be \"out\"");
@@ -233,7 +183,7 @@ class OperationProcess extends FbpProcess {
         return this.operator.operate(...inputs);
     }
 }
-
+*/
 const selectInSym = Symbol();
 const selectOutSym = Symbol();
 /*
@@ -321,7 +271,7 @@ class ScriptProcess extends FbpProcess  {
         this.buildScript();
     }
     get scriptHTML() {
-        return this.getInfo('detailsHTML');
+        return this.getAttr('detailsHTML');
     }
     onPortCreated(port) {
         super.onPortCreated(port);
@@ -344,8 +294,7 @@ class ScriptProcess extends FbpProcess  {
 export {
     UserConstantProcess,
     UserPacketLauncherProcess,
-    Operator,
-    OperationProcess,
+    OperationDesignProcess,
     //RouterDesignProcess,
     ScriptProcess,
 }

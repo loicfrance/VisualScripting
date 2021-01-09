@@ -3,6 +3,7 @@ import {dragListener} from "./design/designUtils.mod.js";
 class SidePanel {
     constructor(div) {
         this.panel = div;
+        this.panelTitle = this.panel.querySelector('.title')
         this.contentDiv = this.panel.querySelector('.content');
         this.resizer = this.panel.querySelector('.resizer');
         {
@@ -51,6 +52,7 @@ class SidePanel {
     }
     toggle() {
         this.panel.toggleAttribute("open");
+        this.panelTitle.innerText = this.panelTitle.innerText === "\u25C4" ? "\u25BA" : "\u25C4"
     }
     open() {
         if(!this.isOpen()) this.toggle();

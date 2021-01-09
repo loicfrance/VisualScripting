@@ -1,0 +1,18 @@
+{
+  "id": "web-debug",
+  "name": "Web debug",
+  "processes": {
+    "alert": {
+      "name": "alert",
+      "src": "./alert.js"
+    },
+    "2d-display": {
+      "name": "2D array display",
+      "src": "./display-2d.js"
+    },
+    "log": {
+      "name": "JS console",
+      "src": "./console.js"
+    }
+  }
+}

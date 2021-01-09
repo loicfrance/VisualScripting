@@ -1,3 +1,8 @@
+import {PRNG} from "../../../jslib/utils/tools.mod.js";
+import FbpConnection from "./FbpConnection.mod.js";
+import {FbpPortDirection} from "./FbpPort.mod.js";
+import FbpProcess from "./FbpProcess.mod.js";
+//import {FbpSheetPortProcess, FbpSubSheetProcess} from "./process-lib/FbpSheetPortProcess.mod.js";
 
 const processesSym = Symbol("processes list");
 const connectionsSym = Symbol("connections list");
@@ -9,63 +14,52 @@ const callListener = Symbol("add event to pending list");
 const timeoutSym = Symbol();
 
 const createdProcessesSym = Symbol("untreated process creations");
-const updatedProcessesSym = Symbol("untreated process updates");
 const deletedProcessesSym = Symbol("untreated process deletions");
 const createdPortsSym = Symbol("untreated port creations");
-const updatedPortsSym = Symbol("untreated port updates");
 const deletedPortsSym = Symbol("untreated port deletions");
 const createdConnectionsSym = Symbol("untreated connection creations");
-const updatedConnectionsSym = Symbol("untreated connection updates");
 const deletedConnectionsSym = Symbol("untreated connection deletions");
 const onObjectCreated = Symbol();
-const onObjectChanged = Symbol();
 const onObjectDeleted = Symbol();
+const getQueueWithObjectSym = Symbol();
+
+const libLoaderSym = Symbol();
+
+const PRNGSym = Symbol("Random number generator");
 
 const FbpEventType = {
     PROCESS_CREATED: "process_created",
     PROCESS_DELETED: "process_deleted",
-    PROCESS_CHANGED: "process_changed",
-    PORT_CREATED: "port_created",
-    PORT_DELETED: "port_deleted",
-    PORT_CHANGED: "port_changed",
     CONNECTION_CREATED: "connection_created",
     CONNECTION_DELETED: "connection_deleted",
-    CONNECTION_CHANGED: "connection_changed",
 };
 const FBP_EVT = FbpEventType;
 
 
 class FbpSheet {
-    [processesSym] = [];
+    [processesSym] = new Map();
     [connectionsSym] = [];
     [typesTableSym] = new Map();
     [listenerSym];
     [pendingEventsSym] = [];
     [timeoutSym] = undefined;
+    [PRNGSym] = new PRNG(0);
 
     [deletedProcessesSym] = [];
-    [updatedProcessesSym] = [];
     [createdProcessesSym] = [];
     [deletedPortsSym] = [];
-    [updatedPortsSym] = [];
     [createdPortsSym] = [];
     [deletedConnectionsSym] = [];
-    [updatedConnectionsSym] = [];
     [createdConnectionsSym] = [];
+
+    [libLoaderSym];
 
     [callListenerSym] = (function() {
         this[timeoutSym] = undefined;
-        let a;
-        a = this[deletedProcessesSym].splice(0); for(const p of a) this[listenerSym](FBP_EVT.PROCESS_DELETED, p);
-        a = this[updatedProcessesSym].splice(0); for(const p of a) this[listenerSym](FBP_EVT.PROCESS_CHANGED, p);
-        a = this[createdProcessesSym].splice(0); for(const p of a) this[listenerSym](FBP_EVT.PROCESS_CREATED, p);
-        a = this[deletedPortsSym].splice(0); for(const p of a) this[listenerSym](FBP_EVT.PORT_DELETED, p);
-        a = this[updatedPortsSym].splice(0); for(const p of a) this[listenerSym](FBP_EVT.PORT_CHANGED, p);
-        a = this[createdPortsSym].splice(0); for(const p of a) this[listenerSym](FBP_EVT.PORT_CREATED, p);
-        a = this[deletedConnectionsSym].splice(0); for(const c of a) this[listenerSym](FBP_EVT.CONNECTION_DELETED, c);
-        a = this[updatedConnectionsSym].splice(0); for(const c of a) this[listenerSym](FBP_EVT.CONNECTION_CHANGED, c);
-        a = this[createdConnectionsSym].splice(0); for(const c of a) this[listenerSym](FBP_EVT.CONNECTION_CREATED, c);
-
+        for(const p of this[deletedProcessesSym].splice(0)) this[listenerSym](FBP_EVT.PROCESS_DELETED, p);
+        for(const p of this[createdProcessesSym].splice(0)) this[listenerSym](FBP_EVT.PROCESS_CREATED, p);
+        for(const c of this[deletedConnectionsSym].splice(0)) this[listenerSym](FBP_EVT.CONNECTION_DELETED, c);
+        for(const c of this[createdConnectionsSym].splice(0)) this[listenerSym](FBP_EVT.CONNECTION_CREATED, c);
     }).bind(this);
 
     [callListener]() {
@@ -78,7 +72,7 @@ class FbpSheet {
      * @param {function(FbpEventType, FbpProcess|FbpConnection|FbpPort):void | undefined} listener
      */
     constructor(listener = undefined) {
-        this.setEventsListener(listener)
+        this.setEventsListener(listener);
     }
 
     /**
@@ -91,99 +85,104 @@ class FbpSheet {
 
     // noinspection JSUnusedGlobalSymbols
     /**
-     * @type {FbpProcess[]}
+     * @type {Map<number, FbpProcess>}
      */
     get processes() {
         return this[processesSym];
     }
-    /**
-     * @type {FbpConnection[]}
-     */
+    /** @type {FbpConnection[]} */
     get connections() {
         return this[connectionsSym];
+    }
+    /** @type {FbpLoader} */
+    get libLoader() {
+        return this[libLoaderSym];
+    }
+    /** @param {FbpLoader} loader */
+    set libLoader(loader) {
+        this[libLoaderSym] = loader;
     }
 
     // noinspection JSUnusedGlobalSymbols
     getProcess(id) {
-        return this.processes.find(p=>p.id === id);
+        return this.processes.get(id);
     }
 
     isProcessIdTaken(id) {
-        let i = this[processesSym].length;
-        while(i--) {
-            if(this[processesSym][i].id === id)
-                return true;
+        return this.processes.has(id);
+    }
+    generateProcessId(id = NaN) {
+        let nb_trials = 10000;
+        if (!isNaN(id) && !this.isProcessIdTaken(id))
+            return id;
+        do {
+            id = this[PRNGSym].next();
+        } while(this.isProcessIdTaken(id) && (--nb_trials) > 0);
+        if (nb_trials === 0) {
+            throw Error("cannot find unused process id after 10000 trials");
         }
-        return false;
+        return id;
+    }
+    [getQueueWithObjectSym](object, createdSym, deletedSym) {
+        return  this[createdSym].includes(object) ? this[createdSym] :
+                this[deletedSym].includes(object) ? this[deletedSym] : undefined;
     }
 
-    [onObjectCreated](object, createdSym, updatedSym, deletedSym) {
-        const idx = this[updatedSym].indexOf(object);
-        if(idx >= 0) this[updatedSym].splice(idx, 1);
+    [onObjectCreated](object, createdSym, deletedSym) {
         this[createdSym].push(object);
         this[callListener]();
     }
-    [onObjectChanged](object, createdSym, updatedSym, deletedSym) {
-        if(this[updatedSym].includes(object)) return;
-        else if(this[createdSym].includes(object)) return;
-        else if(this[deletedSym].includes(object)) return;
-        this[updatedSym].push(object);
-        this[callListener]();
-    }
-    [onObjectDeleted](object, createdSym, updatedSym, deletedSym) {
+    [onObjectDeleted](object, createdSym, deletedSym) {
         let idx = this[createdSym].indexOf(object);
         if(idx >= 0) this[createdSym].splice(idx, 1);
-        else {
-            idx = this[updatedSym].indexOf(object);
-            if(idx >= 0) this[updatedSym].splice(idx, 1);
-            this[deletedSym].push(object);
-        }
+        this[deletedSym].push(object);
         this[callListener]();
     }
 
-
     onProcessCreated(process) {
-        this[processesSym].push(process);
-        this[onObjectCreated](process, createdProcessesSym, updatedProcessesSym, deletedProcessesSym);
+        this.processes.set(process.id, process);
+        this[onObjectCreated](process, createdProcessesSym, deletedProcessesSym);
     }
     onProcessDeleted(process) {
-        let idx = this[processesSym].indexOf(process);
-        if(idx >= 0) this[processesSym].splice(idx, 1);
-        else throw Error("deleted process not in processes array");
-        this[onObjectDeleted](process, createdProcessesSym, updatedProcessesSym, deletedProcessesSym);
-    }
-    onProcessChanged(process) {
-        this[onObjectChanged](process, createdProcessesSym, updatedProcessesSym, deletedProcessesSym);
-    }
-
-    onPortCreated(port) {
-        this[onObjectCreated](port, createdPortsSym, updatedPortsSym, deletedPortsSym);
-    }
-    onPortDeleted(port) {
-        this[onObjectDeleted](port, createdPortsSym, updatedPortsSym, deletedPortsSym);
-    }
-    onPortChanged(port) {
-        this[onObjectChanged](port, createdPortsSym, updatedPortsSym, deletedPortsSym);
+        this.processes.delete(process.id);
+        this[onObjectDeleted](process, createdProcessesSym, deletedProcessesSym);
     }
 
     onConnectionCreated(connection) {
         this[connectionsSym].push(connection);
-        this[onObjectCreated](connection, createdConnectionsSym, updatedConnectionsSym, deletedConnectionsSym);
+        this[onObjectCreated](connection, createdConnectionsSym, deletedConnectionsSym);
     }
     onConnectionDeleted(connection) {
         let idx = this[connectionsSym].indexOf(connection);
         if(idx >= 0) this[connectionsSym].splice(idx, 1);
         else throw Error("deleted connection not in connections array");
-        this[onObjectDeleted](connection, createdConnectionsSym, updatedConnectionsSym, deletedConnectionsSym);
+        this[onObjectDeleted](connection, createdConnectionsSym, deletedConnectionsSym);
     }
-    onConnectionChanged(connection) {
-        this[onObjectChanged](connection, createdConnectionsSym, updatedConnectionsSym, deletedConnectionsSym);
+    clearProcesses() {
+        const processes = this[processesSym].values();
+        for(let p of processes) {
+            p.delete();
+        }
+        if(this[connectionsSym].length > 0) {
+            throw Error("Error : remaining connections after fbp sheet clean");
+        }
     }
     exportJSON() {
         return {
-            processes: this.processes.map(p=>p.exportJSON()),
+            processes: Array.from(this.processes).map(([id,p])=>p.exportJSON()),
             connections: this.connections.map(c=>c.exportJSON())
         };
+    }
+    async importJSON(object) {
+        const {processes, connections} = object;
+        for(let p of processes) {
+            // noinspection ES6MissingAwait
+            FbpProcess.fromJSON(this, p);
+        }
+        await this.libLoader.finishLoadings();
+        for(let c of connections) {
+            FbpConnection.fromJSON(this, c);
+        }
     }
 
     setType(name, fbpType) {
@@ -191,6 +190,18 @@ class FbpSheet {
     }
     getType(name) {
         return this[typesTableSym].get(name);
+    }
+    hasType(name) {
+        return this[typesTableSym].has(name);
+    }
+    clearTypes() {
+        return this[typesTableSym].clear();
+    }
+    setTypes(typesTable, override=true) {
+        typesTable.forEach((type, name) => {
+            if (override || !(this.hasType(name)))
+                this.setType(name, type);
+        });
     }
 }
 export {FbpSheet, FbpEventType};

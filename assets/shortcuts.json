@@ -24,5 +24,6 @@
   "view-right": {"code": "ArrowRight"},
   "view-down" : {"code": "ArrowDown"},
   "view-full" : {"key": "F"},
-  "save"      : {"key": "S", "ctrlKey": true}
+  "save"      : {"key": "S", "ctrlKey": true},
+  "open"      : {"key": "O", "ctrlKey": true}
 }

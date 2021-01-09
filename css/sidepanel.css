@@ -4,6 +4,7 @@
     position: relative;
     height: 100%;
     z-index: 1;
+    max-width: 35%;
 }
 .side-panel.left { float: left; }
 .side-panel.right { float: right; }
@@ -35,18 +36,21 @@
 .side-panel:not([open]) > .content {
     display: none;
 }
+.side-panel .content .menu-main {
+
+}
 
 .side-panel .resizer .title {
     font-family: Arial, sans-serif;
     font-weight: bold;
     writing-mode: vertical-lr;
-    text-orientation: mixed;
+    text-orientation: upright;
     color: #FFFC;
     background: #FFF4;
     width: 1.5em;
     height: fit-content;
     position: absolute;
-    padding: 2em 0;
+    padding: 1em 0;
     top:50%;
     transform: translateY(-50%);
 }

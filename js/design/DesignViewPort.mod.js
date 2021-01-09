@@ -1,6 +1,6 @@
 import {dragListener} from "./designUtils.mod.js";
-import {MouseButton} from "../../../jsLibs_Modules/utils/input.mod.js";
-import {Vec2, Rect} from "../../../jsLibs_Modules/geometry2d/geometry2d.mod.js";
+import {MouseButton} from "../../../jslib/utils/input.mod.js";
+import {Vec2, Rect} from "../../../jslib/geometry2d/geometry2d.mod.js";
 
 const SVG_NS = "http://www.w3.org/2000/svg";
 
@@ -17,6 +17,13 @@ const initCameraSym = Symbol();
 const initDivSym = Symbol();
 const updateElementsSym = Symbol();
 
+const minWidthSym = Symbol("minimum visible width");
+const minHeightSym = Symbol("minimum visible height");
+const maxRectSym = Symbol("maximum visible rectangle");
+const dragListenerSym = Symbol("camera drag listener");
+const wheelListenerSym = Symbol("camera zoom listener");
+const cameraListenerSym = Symbol("camera change listener");
+
 class DesignViewPort {
     /**
      * @constructor
@@ -31,7 +38,7 @@ class DesignViewPort {
                     minWidth = 10,
                     minHeight = 10,
                     maxRect = null,
-                    cameraListener
+                    cameraListener,
                 }) {
         this[globalDivSym] = div;
         this.visibleRect = Rect.createFromCenterWidthHeight(Vec2.ZERO, div.clientWidth, div.clientHeight);
@@ -227,14 +234,14 @@ class DesignViewPort {
     }
 
     /**
-     * @param {DesignProcess} process
+     * @param {ProcessDisplay} process
      */
     addProcess(process) {
         this.processesDiv.appendChild(process.elmt)
     }
 
     /**
-     * @param {DesignProcess} process
+     * @param {ProcessDisplay} process
      */
     removeProcess(process) {
         this.processesDiv.removeChild(process.elmt);

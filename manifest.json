@@ -1,0 +1,23 @@
+{
+  "name": "Visual Scripting",
+  "short_name": "V-Script",
+  "start_url": "index.html",
+  "display": "standalone",
+  "background_color": "#fdfdfd",
+  "theme_color": "#db4938",
+  "icons": [
+    {
+      "src": "assets/icons/icon.svg",
+      "type": "image/svg"
+    },
+    {
+      "src": "assets/icons/icon_144.png",
+      "type": "image/png", "sizes": "144x144"
+    },
+    {
+      "src": "assets/icons/icon_192.png",
+      "type": "image/png", "sizes": "192x192"
+    }
+  ]
+}
+
