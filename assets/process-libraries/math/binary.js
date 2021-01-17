@@ -27,10 +27,10 @@ function getParameters() {
 /**
  * @param {string} op
  * @param {boolean} bool_op
- * @param {FbpSheet} fbpSheet
+ * @param {FbpEnvironment} env
  * @return {string|null}
  */
-function checkParameters({op, bool_op}, fbpSheet) {
+function checkParameters({op, bool_op}, env) {
     if (!(op.substr && operations.hasOwnProperty(op)))
         return `unknown operation ${op}`;
     if (bool_op && ["lshift", "rshift"].includes(op))
@@ -46,7 +46,7 @@ function checkParameters({op, bool_op}, fbpSheet) {
 
 function onCreate({op = "and", bool_op = false}) {
 
-    const error = checkParameters({op, bool_op}, this.sheet);
+    const error = checkParameters({op, bool_op}, this.sheet.env);
     if (error)
         throw Error(error);
 

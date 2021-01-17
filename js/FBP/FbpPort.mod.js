@@ -142,7 +142,7 @@ class FbpPort extends FbpObject {
 
     /** @type {FbpType} */
     get dataType() {
-        return this.sheet.getType(this[dataTypeSym]);
+        return this.sheet.env.getType(this[dataTypeSym]);
     }
 
     /** @type {FbpPortDirection} */
@@ -250,7 +250,7 @@ class FbpPort extends FbpObject {
      * @return {boolean}
      */
     canConnect(other) {
-        if(this.active === other.active) {
+        if(this.active === other.active && this.sheet === other.sheet) {
             if (this.output)
                 return other.input && this.dataType.canBeCastTo(other.dataType);
             else

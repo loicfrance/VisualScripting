@@ -28,10 +28,10 @@ function getParameters() {
 
 /**
  * @param {string} op
- * @param {FbpSheet} fbpSheet
+ * @param {FbpEnvironment} env
  * @return {string|null}
  */
-function checkParameters({op}, fbpSheet) {
+function checkParameters({op}, env) {
     if (!(op.substr && operations.hasOwnProperty(op)))
         return `unknown operation ${op}`;
     return null;
@@ -43,7 +43,7 @@ function checkParameters({op}, fbpSheet) {
  */
 function onCreate({op="cos"}) {
 
-    const error = checkParameters({op}, this.sheet);
+    const error = checkParameters({op}, this.sheet.env);
     if(error)
         throw Error(error);
 

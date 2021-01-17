@@ -12,7 +12,7 @@ const min_assets = [
     "/assets/icon_process.svg",
     "/assets/shortcuts.json",
 
-    "/js/env.mod.js",
+    "/js/main.mod.js",
     "/js/SidePanel.mod.js",
 
     "/js/design/DesignBoard.mod.js",

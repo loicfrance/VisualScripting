@@ -39,10 +39,10 @@ function getParameters() {
  * @param {string} op
  * @param {string} in1_type
  * @param {string} in2_type
- * @param {FbpSheet} fbpSheet
+ * @param {FbpEnvironment} env
  * @return {string|null}
  */
-function checkParameters({op, in1_type, in2_type}, fbpSheet) {
+function checkParameters({op, in1_type, in2_type}, env) {
     if (!(op.substr && operations.hasOwnProperty(op)))
         return `unknown operation ${op}`;
     if (!(in1_type.substr && types.hasOwnProperty(in1_type)))
@@ -60,7 +60,7 @@ function checkParameters({op, in1_type, in2_type}, fbpSheet) {
 
 function onCreate({op="plus", in1_type, in2_type}) {
 
-    const error = checkParameters({op, in1_type, in2_type}, this.sheet);
+    const error = checkParameters({op, in1_type, in2_type}, this.env);
     if(error)
         throw Error(error);
 

@@ -15,7 +15,7 @@ function getParameters() {
     }]
 }
 
-function checkParameters({attrs}, fbpSheet) {
+function checkParameters({attrs}, env) {
     if (!Array.isArray(attrs) || attrs.length === 0)
         return `attrs attribute must be a non-empty array`;
     for (let attr of attrs) {
@@ -24,7 +24,7 @@ function checkParameters({attrs}, fbpSheet) {
         if ("type" in attr) {
             if (attr.type === "void")
                 return `void type forbidden for passive values`;
-            if (!fbpSheet.getType(attr.type))
+            if (!env.getType(attr.type))
                 return `unknown type ${attr.type}`;
         } else {
             return `type is missing for attribute "${attr}"`;
@@ -34,7 +34,7 @@ function checkParameters({attrs}, fbpSheet) {
 }
 
 function onCreate({attrs = []}) {
-    const error = checkParameters({attrs}, this.sheet);
+    const error = checkParameters({attrs}, this.env);
     if(error)
         throw Error(error);
 

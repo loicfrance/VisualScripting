@@ -100,12 +100,12 @@ class FbpType extends FbpObject {
     }
 
     /**
-     * @param {string} type
+     * @param {string|FbpType} type
      * @returns {boolean}
      */
     canBeCastTo(type) {
         if(type instanceof FbpType)
-            type = type[nameSym];
+            type = type.name;
         return type === this.name || this.inheritFrom(type) || this[castToSym].has(type);
     }
 

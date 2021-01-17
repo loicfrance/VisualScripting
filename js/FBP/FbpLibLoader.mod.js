@@ -1,8 +1,11 @@
-import BusyCount from "../../jslib/utils/BusyCount.mod.js";
-import {loadString} from "../../jslib/utils/tools.mod.js";
+import BusyCount from "../../../jslib/utils/BusyCount.mod.js";
+import {loadString} from "../../../jslib/utils/tools.mod.js";
 
 const loadSym = Symbol("base loader");
 const busyCountSym = Symbol("busy count");
+
+const incrementBusy = Symbol("increment busy count");
+const decrementBusy = Symbol("decrement busy count");
 
 /**
  * @typedef FbpProcessHandler
@@ -28,61 +31,86 @@ const busyCountSym = Symbol("busy count");
 
 class FbpLoader {
 
-    libRootUrl;
-    libs =  new Map();
+    libs = new Map();
     processes = new Map();
     typeLibs = new Map();
     [busyCountSym] = new BusyCount();
 
+    [incrementBusy] = this[busyCountSym].increment.bind(this[busyCountSym]);
+    [decrementBusy] = this[busyCountSym].decrement.bind(this[busyCountSym]);
 
-    constructor(libRootUrl) {
-        this.libRootUrl = libRootUrl;
-        this.libRootUrl = this.libRootUrl.replaceAll("\\", "/")
-        if (!this.libRootUrl.endsWith("/")) {
-            this.libRootUrl += "/";
+    constructor(libRootUrl=undefined) {
+        this.libs.set("", {
+            libraries: {}
+        });
+        if(libRootUrl) {
+            // noinspection JSIgnoredPromiseFromCall
+            this.addRootUrl(libRootUrl);
         }
-        this[busyCountSym].increment();
-        this.libs.set("", loadString(libRootUrl+"_lib.json")
-            .then(JSON.parse)
-            .then(this.libs.set.bind(this.libs, ""))
-            .then(this[busyCountSym].decrement.bind(this[busyCountSym])));
     }
 
-    async getLibPath(libName) {
-        let path = this.libRootUrl;
-        let lib = await this.loadLib("");
+    async addRootUrl(rootUrl) {
+        rootUrl = rootUrl.replaceAll("\\", "/");
+        if(!rootUrl.endsWith('/'))
+            rootUrl += "/";
 
+        this[incrementBusy]();
+        loadString(rootUrl+"_lib.json")
+            .then(text=>JSON.parse(text, (key, value)=>
+                ["dir","src","href","url"].includes(key) ? (rootUrl + value) : value
+            ))
+            .then(({libraries})=>{
+                Object.assign(this.getLoadedLib("").libraries, libraries);
+            })
+            .then(this[decrementBusy]);
+    }
+
+    async getLibURL(libName) {
+        let url = "";
+        let lib = this.getLoadedLib("");
         while(libName.includes("/")) {
             const nextLib = libName.substring(0, libName.indexOf("/"));
             if (!("libraries" in lib) || !(nextLib in lib["libraries"])) {
-                return undefined;
+                if (url === "") {
+                    await this.finishLoadings();
+                    lib = this.getLoadedLib(""); // TODO: maybe useless, object should be modified
+                    if(!(nextLib in lib["libraries"]))
+                        return undefined;
+                }
+                else {
+                    return undefined;
+                }
             }
-            path += lib["libraries"][nextLib];
-            if (path[path.length-1] !== "/")
-                path += "/"
+            url += lib["libraries"][nextLib];
+            if (!url.endsWith("/"))
+                url += "/";
+
             libName = libName.substring(nextLib.length+1);
             lib = this.loadLib(nextLib)
         }
+        if (url === "") {
+            await this.finishLoadings();
+        }
         if (libName.length === 0)
-            return path;
+            return url;
         if (!("libraries" in lib) || !(libName in lib["libraries"]))
             return undefined;
-        return path + lib["libraries"][libName]["dir"];
+        return url + lib["libraries"][libName]["dir"];
     }
 
     async loadLib(name) {
         if (this.libs.has(name)) {
             if(this.libs.get(name) instanceof Promise) {
-                this[busyCountSym].increment();
+                this[incrementBusy]();
                 await this.libs.get(name);
-                this[busyCountSym].decrement();
+                this[decrementBusy]();
             }
             return this.libs.get(name);
         } else {
-            this[busyCountSym].increment();
-            const url = await this.getLibPath(name)+"_lib.json";
+            const url = await this.getLibURL(name)+"_lib.json";
+            this[incrementBusy]();
             this.libs.set(name, await loadString(url).then(JSON.parse));
-            this[busyCountSym].decrement();
+            this[decrementBusy]();
             return this.libs.get(name);
         }
     }
@@ -93,10 +121,12 @@ class FbpLoader {
         const idx = fullName.lastIndexOf("/");
         const lib_name = fullName.substring(0, idx);
         const elmt_name = fullName.substring(idx+1);
-        const lib_path = await this.getLibPath(lib_name);
+        const lib_path = await this.getLibURL(lib_name);
         const lib = await this.loadLib(lib_name);
         if (lib !== undefined && jsonTag in lib && elmt_name in lib[jsonTag]) {
+            this[incrementBusy]();
             const module = await import(lib_path + lib[jsonTag][elmt_name]["src"]);
+            this[decrementBusy]();
             map.set(fullName, module);
             return module;
         }
@@ -108,10 +138,7 @@ class FbpLoader {
      * @return {FbpProcessHandler}
      */
     async loadHandler(fullName) {
-        this[busyCountSym].increment();
-        const result = await this[loadSym](fullName, this.processes, "processes");
-        this[busyCountSym].decrement();
-        return result;
+        return await this[loadSym](fullName, this.processes, "processes");
     }
 
     isLibLoaded(fullName) {
@@ -139,10 +166,7 @@ class FbpLoader {
      * @return {TypesModule}
      */
     async loadTypesLib(fullName) {
-        this[busyCountSym].increment();
-        const result = await this[loadSym](fullName, this.typeLibs, "types");
-        this[busyCountSym].decrement();
-        return result;
+        return await this[loadSym](fullName, this.typeLibs, "types");
     }
 
     async displayLib(panel, libName) {

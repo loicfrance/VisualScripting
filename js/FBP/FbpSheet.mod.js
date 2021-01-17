@@ -1,12 +1,13 @@
 import {PRNG} from "../../../jslib/utils/tools.mod.js";
 import FbpConnection from "./FbpConnection.mod.js";
+import FbpObject from "./FbpObject.mod.js";
 import {FbpPortDirection} from "./FbpPort.mod.js";
 import FbpProcess from "./FbpProcess.mod.js";
 //import {FbpSheetPortProcess, FbpSubSheetProcess} from "./process-lib/FbpSheetPortProcess.mod.js";
 
+const environmentSym = Symbol("FBP environment");
 const processesSym = Symbol("processes list");
 const connectionsSym = Symbol("connections list");
-const typesTableSym = Symbol("types table");
 const listenerSym = Symbol("event listener");
 const pendingEventsSym = Symbol("pending events");
 const callListenerSym = Symbol("call event listener");
@@ -23,8 +24,6 @@ const onObjectCreated = Symbol();
 const onObjectDeleted = Symbol();
 const getQueueWithObjectSym = Symbol();
 
-const libLoaderSym = Symbol();
-
 const PRNGSym = Symbol("Random number generator");
 
 const FbpEventType = {
@@ -35,11 +34,18 @@ const FbpEventType = {
 };
 const FBP_EVT = FbpEventType;
 
+/**
+ * @typedef FbpSheetListener
+ * @property {function(FbpProcess)} onProcessCreated
+ * @property {function(FbpProcess)} onProcessDeleted
+ * @property {function(FbpConnection)} onConnectionCreated
+ * @property {function(FbpConnection)} onConnectionDeleted
+ */
 
-class FbpSheet {
+
+class FbpSheet extends FbpObject {
     [processesSym] = new Map();
     [connectionsSym] = [];
-    [typesTableSym] = new Map();
     [listenerSym];
     [pendingEventsSym] = [];
     [timeoutSym] = undefined;
@@ -52,15 +58,18 @@ class FbpSheet {
     [deletedConnectionsSym] = [];
     [createdConnectionsSym] = [];
 
-    [libLoaderSym];
-
-    [callListenerSym] = (function() {
+    [callListenerSym] = ()=> {
         this[timeoutSym] = undefined;
-        for(const p of this[deletedProcessesSym].splice(0)) this[listenerSym](FBP_EVT.PROCESS_DELETED, p);
-        for(const p of this[createdProcessesSym].splice(0)) this[listenerSym](FBP_EVT.PROCESS_CREATED, p);
-        for(const c of this[deletedConnectionsSym].splice(0)) this[listenerSym](FBP_EVT.CONNECTION_DELETED, c);
-        for(const c of this[createdConnectionsSym].splice(0)) this[listenerSym](FBP_EVT.CONNECTION_CREATED, c);
-    }).bind(this);
+        const listener = this[listenerSym];
+        const deletedProcs = this[deletedProcessesSym].splice(0);
+        const createdProcs = this[createdProcessesSym].splice(0);
+        const deletedConns = this[deletedConnectionsSym].splice(0);
+        const createdConns = this[createdConnectionsSym].splice(0);
+        for(const p of deletedProcs) listener.onProcessDeleted(p);
+        for(const p of createdProcs) listener.onProcessCreated(p);
+        for(const c of deletedConns) listener.onConnectionDeleted(c);
+        for(const c of createdConns) listener.onConnectionCreated(c);
+    };
 
     [callListener]() {
         if (this[timeoutSym] === undefined && this[listenerSym])
@@ -69,18 +78,27 @@ class FbpSheet {
 
 
     /**
-     * @param {function(FbpEventType, FbpProcess|FbpConnection|FbpPort):void | undefined} listener
+     * @param {FbpEnvironment} environment
+     * @param {FbpSheetListener} listener
      */
-    constructor(listener = undefined) {
+    constructor(environment, listener = undefined) {
+        super();
+        this[environmentSym] = environment;
         this.setEventsListener(listener);
+
     }
 
     /**
-     * @param {function(FbpEventType, FbpProcess|FbpConnection|FbpPort):void | undefined} listener
+     * @param {FbpSheetListener} listener
      */
     setEventsListener(listener) {
         this[listenerSym] = listener;
         this[callListener]();
+    }
+
+    /** @type FbpEnvironment */
+    get env() {
+        return this[environmentSym];
     }
 
     // noinspection JSUnusedGlobalSymbols
@@ -96,11 +114,7 @@ class FbpSheet {
     }
     /** @type {FbpLoader} */
     get libLoader() {
-        return this[libLoaderSym];
-    }
-    /** @param {FbpLoader} loader */
-    set libLoader(loader) {
-        this[libLoaderSym] = loader;
+        return this.env.libLoader;
     }
 
     // noinspection JSUnusedGlobalSymbols
@@ -173,7 +187,20 @@ class FbpSheet {
             connections: this.connections.map(c=>c.exportJSON())
         };
     }
+    createProcess(config) {
+        return new FbpProcess(this, config);
+    }
+    createProcesses(...configs) {
+        return configs.map(this.createProcess.bind(this));
+    }
+
+    /**
+     * @param {Object|string} object
+     * @return {Promise<void>}
+     */
     async importJSON(object) {
+        if(object.substr)
+            object = JSON.parse(object);
         const {processes, connections} = object;
         for(let p of processes) {
             // noinspection ES6MissingAwait
@@ -185,23 +212,34 @@ class FbpSheet {
         }
     }
 
-    setType(name, fbpType) {
-        this[typesTableSym].set(name, fbpType);
-    }
+    /**
+     * @deprecated use fbpSheet.env.getType instead
+     * @param name
+     * @return {any}
+     */
     getType(name) {
-        return this[typesTableSym].get(name);
+        console.warn("use of deprecated function FbpSheet.getType");
+        return this.env.getType(name);
     }
+
+    /**
+     * @deprecated use fbpSheet.env.hasType instead
+     * @param name
+     * @return {Promise<boolean> | boolean}
+     */
     hasType(name) {
-        return this[typesTableSym].has(name);
+        console.warn("use of deprecated function FbpSheet.hasType");
+        return this.env.has(name);
     }
-    clearTypes() {
-        return this[typesTableSym].clear();
-    }
+
+    /**
+     * @deprecated use fbpSheet.env.setTypes instead
+     * @param typesTable
+     * @param override
+     */
     setTypes(typesTable, override=true) {
-        typesTable.forEach((type, name) => {
-            if (override || !(this.hasType(name)))
-                this.setType(name, type);
-        });
+        console.warn("use of deprecated function FbpSheet.setTypes");
+        this.env.setTypes(typesTable, override);
     }
 }
 export {FbpSheet, FbpEventType};

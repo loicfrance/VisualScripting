@@ -46,15 +46,8 @@ class FbpProcess extends FbpObject {
      * @param {string} config.handler
      * @param {Object} [config.parameters]
      * @param {...Object} [config.attributes]
-     * @param {...Object} [portAttributes]
-     * @param {string} portAttributes.name
-     * @param {FbpType} portAttributes.type
-     * @param {FbpPortDirection} portAttributes.direction
-     * @param {boolean} [portAttributes.passive=false]
-     * @param {boolean} [portAttributes.passThrough=false]
      */
-    constructor(fbpSheet, config,
-                ...portAttributes) {
+    constructor(fbpSheet, config) {
         const {name, id, handler, parameters = {}, ...attributes} = config;
         super(attributes);
         this[sheetSym] = fbpSheet;
@@ -67,8 +60,6 @@ class FbpProcess extends FbpObject {
         this[handlerNameSym] = handler;
         this[handlerSym] = fbpSheet.libLoader.getLoadedHandler(handler);
         fbpSheet.onProcessCreated(this);
-        if (portAttributes)
-            this.createPorts(...portAttributes);
 
         if (this.handler.onCreate)
             this.handler.onCreate.call(this, parameters);

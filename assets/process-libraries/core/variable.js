@@ -14,13 +14,13 @@ function getParameters() {
 /**
  * @param {string} type
  * @param {string|any} value
- * @param {FbpSheet} fbpSheet
+ * @param {FbpEnvironment} env
  * @return {string|null}
  */
-function checkParameters({type, value}, fbpSheet) {
+function checkParameters({type, value}, env) {
     if ((type === "void"))
         return "\"void\" type cannot be used for variables"
-    const fbpType = fbpSheet.getType(type);
+    const fbpType = env.getType(type);
     if (!fbpType)
         return `unkown type ${type}`;
     if (value !== undefined && value.substr && value.length > 0) {
@@ -40,7 +40,7 @@ function checkParameters({type, value}, fbpSheet) {
  */
 function onCreate({type="any", value = undefined}) {
 
-    const error = checkParameters({type, value}, this.sheet);
+    const error = checkParameters({type, value}, this.sheet.env);
     if (error)
         throw Error(error);
 
@@ -50,7 +50,7 @@ function onCreate({type="any", value = undefined}) {
         {active: false, direction: "out", dataType: type, name: "Q", visible_name: false, visible_value: true}
     );
     if (value !== undefined && value.substr) {
-        const v = this.sheet.getType(type).parse(value);
+        const v = this.sheet.env.getType(type).parse(value);
         this.getOutputPort(0).value = v;
     }
     this.setAttr("color", '#800');

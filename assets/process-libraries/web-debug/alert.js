@@ -8,14 +8,14 @@ function getParameters() {
     }];
 }
 
-function checkParameters({in_size}, fbpSheet) {
+function checkParameters({in_size}, env) {
     if(Number.isNaN(in_size) || !Number.isInteger(in_size) || in_size < 0)
         return `in_size parameter must be a positive integer`;
     return null;
 }
 
 function onCreate({in_size=1}) {
-    const error = checkParameters({in_size}, this.sheet);
+    const error = checkParameters({in_size}, this.sheet.env);
     if(error)
         throw Error(error);
 

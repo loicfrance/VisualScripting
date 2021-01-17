@@ -1,13 +1,14 @@
 import {Rect} from "../../../jslib/geometry2d/Rect.mod.js";
 import {Vec2} from "../../../jslib/geometry2d/Vec2.mod.js";
 import {hexToRGBA, luminance} from "../../../jslib/utils/colors.mod.js";
+import {htmlToElements} from "../../../jslib/utils/tools.mod.js";
 import FbpPort, {FbpPortDirection as PORT_DIR} from "../FBP/FbpPort.mod.js";
 import {FbpProcessChangeReason as ChangeReason} from "../FBP/FbpProcess.mod.js";
 import PortDisplay from "./PortDisplay.mod.js";
 
 const CLICK_MOVE_SQUARE_LIMIT = (2)**2;
 
-const boardSym = Symbol("design board");
+const designSheetSym = Symbol("design board");
 const fbpProcessSym = Symbol("FBP process");
 const inputPortDisplaysSym = Symbol("input port displays");
 const outputPortDisplaysSym = Symbol("output port displays");
@@ -23,13 +24,28 @@ const createPortDisplaySym = Symbol("create PortDisplay for FbpPort");
 const removePortDisplaySym = Symbol("remove PortDisplay for FbpPort");
 const onDbClickSym = Symbol("Double click listener");
 
-const processTemplate = document.querySelector('#process-template').content.firstElementChild;
-// noinspection JSUnusedLocalSymbols
-const detailsTemplate = document.querySelector('#process-details-template').content.firstElementChild;
+const [processTemplate, detailsTemplate] = htmlToElements(`
+<div class="process" spellcheck="false">
+    <h2 class="title"></h2>
+    <ul class="ports input"></ul>
+    <div class="operation"></div>
+    <ul class="ports output"></ul>
+    <div class="details"></div>
+</div>
+`, `
+<div class="process-details">
+    <label id="id">ID<input type="text"></label>
+    <label id="title">Title<input type="text"> <input type="checkbox" checked>visible</label>
+    <label id="color">Color<input type="color"> </label>
+    <ul id="ports input"></ul>
+    <ul id="ports output"></ul>
+    <button disabled>Advanced Options : Process Creator</button>
+</div>
+`);
 
 /** @implements {FbpObjectDisplay} */
 class ProcessDisplay {
-    [boardSym];
+    [designSheetSym];
     [fbpProcessSym];
     [inputPortDisplaysSym] = new Map();
     [outputPortDisplaysSym] = new Map();
@@ -57,11 +73,16 @@ class ProcessDisplay {
 //######################################################################################################################
 //#                                                    CONSTRUCTOR                                                     #
 //######################################################################################################################
-    constructor(board, fbpProcess, {...attributes}={}) {
+    constructor(designSheet, fbpProcess, {...attributes}={}) {
         this[fbpProcessSym] = fbpProcess;
-        this[boardSym] = board;
+        this[designSheetSym] = designSheet;
         const startPos = Vec2.zero;
         this.elmt.addEventListener('dblclick', this[onDbClickSym]);
+
+        this.elmt.addEventListener('mouseenter', (evt)=>
+            this.designSheet.editor?.onObjectHover(this));
+        this.elmt.addEventListener('mouseout', (evt)=>
+            this.designSheet.editor?.onObjectHover(undefined));
 
         const onMove = (evt)=> {
             if(Vec2.squareDistance(startPos, new Vec2(evt.pageX, evt.pageY)) > 4) {
@@ -71,16 +92,16 @@ class ProcessDisplay {
         };
         const onClick = (evt)=> {
             if (evt.shiftKey || evt.ctrlKey)
-                this.board.unselect(this);
-            else this.board.setSelection(this);
+                this.designSheet.unselect(this);
+            else this.designSheet.setSelection(this);
             this.elmt.removeEventListener('mousemove', onMove);
             this.elmt.removeEventListener('click', onClick);
         };
         this.elmt.addEventListener('mousedown', (evt)=> {
             if(!this.selected) {
                 if(evt.shiftKey || evt.ctrlKey)
-                    this.board.select(this);
-                else this.board.setSelection(this);
+                    this.designSheet.select(this);
+                else this.designSheet.setSelection(this);
             } else {
                 startPos.setXY(evt.pageX, evt.pageY);
                 this.elmt.addEventListener('mousemove', onMove);
@@ -90,7 +111,6 @@ class ProcessDisplay {
         this.selected = false;
         this.fbpProcess.display = this;
         this.update();
-        board.viewPort.addProcess(this);
     }
 
 //######################################################################################################################
@@ -128,8 +148,8 @@ class ProcessDisplay {
     get visibleName() { return this.fbpProcess.getAttr('visible_name', true); }
     set visibleName(value) { this.fbpProcess.setAttr('visible_name', value); }
 
-    get board() {
-        return this[boardSym];
+    get designSheet() {
+        return this[designSheetSym];
     }
 
 //######################################################################################################################
@@ -229,8 +249,6 @@ class ProcessDisplay {
     onDestroy() {
         this.titleElmt.blur();
         this.elmt.removeEventListener('dblclick', this[onDbClickSym]);
-        if(this.elmt.parentElement)
-            this.elmt.parentElement.removeChild(this.elmt);
     }
 
     // noinspection JSUnusedGlobalSymbols
@@ -314,7 +332,7 @@ class ProcessDisplay {
     }
     getRect() {
         const {width: width, height: height} = this.elmt.getBoundingClientRect();
-        const scale = 1 / this.board.viewPort.zoomFactor;
+        const scale = 1 / this.designSheet.zoomFactor;
         const scaledHalfW = width * scale / 2, scaledH = height * scale;
         const position = this.position;
         return new Rect(

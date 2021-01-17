@@ -25,15 +25,15 @@ function getParameters() {
     }];
 }
 
-function checkParameters({int_only, min, max, seed}, fbpSheet) {
+function checkParameters({int_only, min, max, seed}, env) {
     if(Number.isNaN(min) || Number.isNaN(max) || Number.isNaN(seed))
         return `min, max and seed must be numbers`;
     if(max <= min)
         return `range maximum must be strictly superior to range minimum`;
 }
 
-function onCreate({int_only, min, max, seed}) {
-    const error = checkParameters({int_only, min, max}, this.sheet);
+function onCreate({int_only, min, max, seed = 0}) {
+    const error = checkParameters({int_only, min, max, seed}, this.sheet.env);
     if(error)
         throw Error(error);
 

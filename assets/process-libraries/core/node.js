@@ -19,10 +19,10 @@ function getParameters() {
  * @param {boolean} event
  * @param {string} type
  * @param {number} nb_out
- * @param {FbpSheet} fbpSheet
+ * @param {FbpEnvironment} env
  * @return {string|null}
  */
-function checkParameters({event, type, nb_out}, fbpSheet) {
+function checkParameters({event, type, nb_out}, env) {
     if (!event && (type === "void"))
         return "\"void\" type can only be used for event nodes"
     if (Number.isNaN(nb_out) || !Number.isInteger(nb_out) || nb_out <= 0)
@@ -37,7 +37,7 @@ function checkParameters({event, type, nb_out}, fbpSheet) {
  */
 function onCreate({event, type, nb_out}) {
 
-    const error = checkParameters({event, type, nb_out}, this.sheet);
+    const error = checkParameters({event, type, nb_out}, this.sheet.env);
     if(error)
         throw Error(error);
 

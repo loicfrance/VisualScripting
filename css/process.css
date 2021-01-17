@@ -225,8 +225,9 @@ div.process .port[selected] .bullet {
     padding: calc((var(--process-port-height) - var(--process-port-value-font-size)) / 2) 0.5em;
     background: #0005;
     color: #FFF8;
+    fill: #FFF8;
     display: none;
-    outline:none;
+    outline: none;
 }
 .process .port[display-value] .value,
 .process .port .value[contenteditable=true] {
@@ -239,9 +240,11 @@ div.process .port[selected] .bullet {
 }
 .process .port[display-value]:not([passive]) .value:hover,
 .process .port[display-value]:not([passive]) .value:focus {
-    color: #FFFB;
+    fill: #FFFB;
+    color: #FFF8;
 }
 .process .port[display-value]:not([passive]) .value:active {
+    fill: #FFFF;
     color: #FFFF;
 }
 /*

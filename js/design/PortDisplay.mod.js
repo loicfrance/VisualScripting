@@ -1,11 +1,21 @@
 import {MouseButton} from "../../../jslib/utils/input.mod.js";
+import {htmlToElements} from "../../../jslib/utils/tools.mod.js";
 import {FbpPort} from "../FBP/fbp.mod.js";
 import {FbpObjectChangeReason} from "../FBP/FbpObject.mod.js";
 import {FbpPortChangeReason} from "../FBP/FbpPort.mod.js";
 import {editorListener} from "./designUtils.mod.js";
 
-
-const portTemplate = document.querySelector('#process-template').content.querySelector('.port');
+const [portTemplate, playIconTemplate] = htmlToElements(`
+<li class="port">
+    <span class="name"></span>
+    <span class="value"></span>
+    <span class="bullet"></span>
+</li>
+`,`
+<svg viewBox="0 0 7 8" width="1em" height="1em" preserveAspectRatio="xMidYMin slice">
+    <polygon points="1,0 1,7 7,3.5"/>&#25B6;
+</svg>
+`);
 
 const nameEditorListenerSym = Symbol("port name editor listener");
 const valueEditorListenerSym = Symbol("port value editor listener");
@@ -89,7 +99,7 @@ class PortDisplay {
         if (MouseButton.getEventSource(evt) === MouseButton.LEFT) {
             evt.preventDefault();
             evt.stopPropagation();
-            this.process.board.onPortBulletMouseEvent(this, evt);
+            this.designSheet.editor.onPortBulletMouseEvent(this, evt);
         }
     }).bind(this);
 //######################################################################################################################
@@ -110,13 +120,17 @@ class PortDisplay {
         this.bulletElement.addEventListener('mouseup', this[bulletListenerSym]);
         this.bulletElement.addEventListener('mouseenter', this[bulletListenerSym]);
         this.bulletElement.addEventListener('mouseout', this[bulletListenerSym]);
+        this.htmlElement.addEventListener('mouseenter', (evt)=>
+            this.designSheet.editor?.onObjectHover(this));
+        this.htmlElement.addEventListener('mouseout', (evt)=>
+            this.designSheet.editor?.onObjectHover(undefined));
 
         if(this.passive) {
             this.htmlElement.setAttribute('passive', '');
             this.valueElement.addEventListener('focus', this[valueEditorListenerSym]);
         } else if (this.input) {
             //const valueElmt = this.valueElement;
-            this.valueElement.textContent = "\u25b6";
+            this.valueElement.appendChild(playIconTemplate.cloneNode(true));
             this.valueElement.addEventListener("click", ()=>
                 this.fbpPort.onInputPacketReceived({})
             );
@@ -169,6 +183,8 @@ class PortDisplay {
 //----------------------------------------------------------------------------------------------------------------------
     /** @type ProcessDisplay */
     get process() { return this[processSym]; }
+    /** @type DesignSheet */
+    get designSheet() { return this.process.designSheet; }
 
     /** @type HTMLElement */
     get nameElement() { return this[nameElmtSym]; }
@@ -181,10 +197,6 @@ class PortDisplay {
 
     /** @type boolean */
     get visibleName() { return this.fbpPort.getAttr('visible_name', true); }
-
-    /**
-     * @param {boolean} value
-     */
     set visibleName(value) { this.fbpPort.setAttr('visible_name', !!value); }
 
     /** @type {ValueVisibility} */
@@ -229,7 +241,7 @@ class PortDisplay {
 
     get position() {
         const r = this.bulletElement.getBoundingClientRect();
-        return this.process.board.viewPort.pageToDesignCoordinatesTransform(r.x + r.width/2, r.y + r.height/2);
+        return this.process.designSheet.pageToFBPCoordinates(r.x + r.width/2, r.y + r.height/2);
     }
 //######################################################################################################################
 //#                                                      METHODS                                                       #
@@ -326,7 +338,7 @@ class PortDisplay {
         this.process.updateConnections();
     }
     isEditingValue() {
-        return this.valueVisibility && document.activeElement === this.valueElement;
+        return this.isValueEditable && document.activeElement === this.valueElement;
     }
 }
 

@@ -13,7 +13,6 @@ const displaySym = Symbol("Fbp Object display object");
  */
 
 /**
- *
  * @enum
  */
 const FbpObjectChangeReason = {

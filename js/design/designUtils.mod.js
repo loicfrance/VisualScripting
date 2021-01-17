@@ -5,6 +5,7 @@ import {Vec2} from "../../../jslib/geometry2d/Vec2.mod.js";
 const DesignAction = {
     MOVE_SELECTED: "move-selected",
     DELETE_SELECTED: "delete-selected",
+    CONNECTING: "connecting",
 };
 
 /**
@@ -66,9 +67,9 @@ const validateVarName = RegExp.prototype.test.bind(varNameRegex);
  * @param buttonMask
  * @param cursor
  * @param {function(evt:MouseEvent, pos:Vec2)} onStart
- * @param {function(evt:MouseEvent, pos:Vec2, delta: Vec2)}onMove
+ * @param {function(evt:MouseEvent, pos:Vec2, delta: Vec2)} onMove
  * @param {function(evt:MouseEvent, pos:Vec2)} onStop
- * @param {number} cancelUpAfter
+ * @param {function(evt:MouseEvent, pagePos:Vec2): Vec2} [positionTransform]
  * @param {MouseEvent} evt
  */
 function dragListener(
@@ -78,6 +79,7 @@ function dragListener(
             onStart = undefined,
             onMove = undefined,
             onStop = undefined,
+            positionTransform = undefined
         },
         evt) {
     // noinspection JSBitwiseOperatorUsage
@@ -85,24 +87,34 @@ function dragListener(
     const previousCursor = firstElmt.style.cursor;
     if((MouseButton.getEventSource(evt) & buttonMask) !== 0) {
         const lastPos = new Vec2(evt.pageX, evt.pageY);
+        if(positionTransform)
+            lastPos.set(positionTransform(evt, lastPos));
+
         const mouseMove = (evt) => {
             evt.preventDefault();
             const pos = new Vec2(evt.pageX, evt.pageY);
+            if(positionTransform)
+                pos.set(positionTransform(evt, pos));
             const delta = Vec2.translation(lastPos, pos);
             lastPos.set(pos);
             if(onMove)
                 onMove(evt, pos, delta);
         };
+
         const mouseUp = (evt) => {
             if(cursor) {
                 firstElmt.style.cursor = previousCursor;
             }
-
             window.removeEventListener('mousemove', mouseMove);
             window.removeEventListener('mouseup', mouseUp);
-            if(onStop)
-                onStop(evt, new Vec2(evt.pageX, evt.pageY));
+            if(onStop) {
+                const pos = new Vec2(evt.pageX, evt.pageY);
+                if(positionTransform)
+                    pos.set(positionTransform(evt, pos));
+                onStop(evt, pos);
+            }
         };
+
         if(!onStart || !(onStart(evt, lastPos) === false)) {
             if(cursor) {
                 firstElmt.style.cursor = cursor;

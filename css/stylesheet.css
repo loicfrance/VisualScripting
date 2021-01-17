@@ -15,14 +15,6 @@ html, body {
     margin : auto;
     padding : 0;
     height: 100%;
-    background-color: #2b2b2b;
-    background-image:
-            linear-gradient(#FFF4 1px, transparent 1px),
-            linear-gradient(90deg, #FFF4 1px, transparent 1px),
-            linear-gradient(#FFF1 1px, transparent 1px),
-            linear-gradient(90deg, #FFF1 1px, transparent 1px);
-    background-size: 100px 100px, 100px 100px, 20px 20px, 20px 20px;
-    background-position:-1px -1px, -1px -1px, -1px -1px, -1px -1px;
     z-index: 0;
     outline: none;
 }

@@ -33,7 +33,7 @@ function getParameters() {
     }];
 }
 
-function checkParameters({func, in_size}, fbpSheet) {
+function checkParameters({func, in_size}, env) {
     if(!functions.hasOwnProperty(func))
         return `unkown console function ${func}`;
     if(!(func in console))
@@ -46,7 +46,7 @@ function checkParameters({func, in_size}, fbpSheet) {
 }
 
 function onCreate({func="log", in_size=1}) {
-    const error = checkParameters({func, in_size}, this.sheet);
+    const error = checkParameters({func, in_size}, this.sheet.env);
     if(error)
         throw Error(error);
 
