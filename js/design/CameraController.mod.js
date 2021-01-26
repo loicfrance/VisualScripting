@@ -1,7 +1,7 @@
-import Rect from "../../jslib/geometry2d/Rect.mod.js";
-import {Vec2} from "../../jslib/geometry2d/Vec2.mod.js";
-import {MouseButton} from "../../jslib/utils/input.mod.js";
-import {dragListener} from "./design/designUtils.mod.js";
+import Rect from "../../../jslib/geometry2d/Rect.mod.js";
+import {Vec2} from "../../../jslib/geometry2d/Vec2.mod.js";
+import {MouseButton} from "../../../jslib/utils/input.mod.js";
+import {dragListener} from "./designUtils.mod.js";
 
 const editorSym = Symbol("Editor");
 const enabledSym = Symbol("camera controller enabled");
@@ -10,6 +10,7 @@ const minWidthSym = Symbol("minimum width");
 const minHeightSym = Symbol("minimum height");
 const maxRectSym = Symbol("camera borders");
 const zoomFactorSym = Symbol("zoom factor");
+const checkingRectSym = Symbol("currently checking visible rect");
 
 const dragListenerSym = Symbol("drag listener");
 const wheelListenerSym = Symbol("mouse wheel listener");
@@ -43,6 +44,7 @@ class CameraController {
     [dragListenerSym];
     [wheelListenerSym];
     [resizeObserverSym] = new ResizeObserver(requestCheck.bind(this));
+    [checkingRectSym] = false;
 
     // noinspection DuplicatedCode
     /**
@@ -80,6 +82,7 @@ class CameraController {
 //___________________________________ links ____________________________________
 //------------------------------------------------------------------------------
 
+    /** @type Editor */
     get editor() { return this[editorSym]; }
     set editor(editor) {
         if(editor !== this.editor) {
@@ -237,16 +240,15 @@ class CameraController {
 //________________________________ modify view _________________________________
 //------------------------------------------------------------------------------
 
-    zoom(factor, origin = this.designSheet.visibleRect.center) {
+    zoom(factor, origin = this.designSheet.center) {
         if(!this.active)
             return;
-        const sheet = this.designSheet;
-        const {height: h, width: w} = sheet.visibleRect;
+        const {height: h, width: w} = this.designSheet.visibleRect;
         const [minW, minH] = [this.minWidth, this.minHeight];
         if (factor > 1 && (w / factor <= minW || h / factor <= minH))
             factor = Math.min(w / minW, h / minH);
         if (factor !== 1) {
-            sheet.zoom(factor, origin);
+            this.editor.zoom(factor, origin);
             this.checkVisibleRect();
         }
     }
@@ -254,7 +256,7 @@ class CameraController {
     move(delta) {
         if(!this.active)
             return;
-        this.designSheet.moveVisibleRect(delta);
+        this.editor.translateView(delta);
         this.checkVisibleRect();
     }
 
@@ -262,29 +264,27 @@ class CameraController {
 //------------------------------------------------------------------------------
 
     checkVisibleRect = ()=> {
+        if(this[checkingRectSym])
+            return;
+        this[checkingRectSym] = true;
         if (!(this.active))
             return;
-
+        let zoomFactor = 1, translate = Vec2.zero;
         const rect = this.designSheet.visibleRect;
-        const minWidth = this.minWidth;
-        const minHeight = this.minHeight;
+        const minW = this.minWidth;
+        const minH = this.minHeight;
         const maxRect = this.maxRect || this.designSheet.getFBPBoundingRect()?.scale(2);
-        if (rect.width < minWidth || rect.height < minWidth) {
-            let maxRatio = Math.max(
-                minWidth / rect.width,
-                minHeight / rect.height
-            );
-            rect.scale(maxRatio);
+        if (rect.width < minW || rect.height < minW) {
+            zoomFactor = Math.max(minW / rect.width, minH / rect.height);
         } else if (maxRect && rect.width > maxRect.width && rect.height > maxRect.height) {
             let maxRatio = Math.max(
                 maxRect.width / rect.width,
                 maxRect.height / rect.height);
             if (maxRatio > 1)
                 maxRatio = 1;
-            rect.setCenterWidthHeight(maxRect.center,
-                rect.width * maxRatio, rect.height * maxRatio);
+            translate.set(Vec2.translation(this.designSheet.center, maxRect.center));
+            zoomFactor = maxRatio;
         } else if (maxRect) {
-            const delta = Vec2.zero;
             const dxMin = maxRect.xMin - rect.xMin,
                 dxMax = maxRect.xMax - rect.xMax,
                 dyMin = maxRect.yMin - rect.yMin,
@@ -292,20 +292,22 @@ class CameraController {
                 dCenter = Vec2.translation(rect.center, maxRect.center);
 
             switch (Math.sign(dCenter.x)) {
-                case -1 : if (dxMax < 0) delta.x = Math.max(dxMax, dCenter.x); break;
-                case 1 : if (dxMin > 0) delta.x = Math.min(dxMin, dCenter.x); break;
+                case -1 : if (dxMax < 0) translate.x = Math.max(dxMax, dCenter.x); break;
+                case 1 : if (dxMin > 0) translate.x = Math.min(dxMin, dCenter.x); break;
                 case 0 : break;
             }
             switch (Math.sign(dCenter.y)) {
-                case -1 : if (dyMax < 0) delta.y = Math.max(dyMax, dCenter.y); break;
-                case 1 : if (dyMin > 0) delta.y = Math.min(dyMin, dCenter.y); break;
+                case -1 : if (dyMax < 0) translate.y = Math.max(dyMax, dCenter.y); break;
+                case 1 : if (dyMin > 0) translate.y = Math.min(dyMin, dCenter.y); break;
                 case 0 : break;
             }
-            if (!delta.isZero()) {
-                rect.move(delta);
-            }
         }
-        this.designSheet.zoomFactor = this.designSheet.htmlDiv.clientWidth / rect.width;
+        if (!translate.isZero())
+            this.editor.translateView(translate);
+        if (zoomFactor !== 1) {
+            this.editor.zoom(zoomFactor);
+        }
+        this[checkingRectSym] = false;
     }
 
 //##############################################################################

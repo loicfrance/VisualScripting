@@ -1,5 +1,14 @@
 
+
 .processes {
+    display: block;
+    position: absolute;
+    width: 0;
+    height: 0;
+    top: 0;
+    left: 0;
+    z-index: 2;
+
     --process-title-font-size: 25px;
     --process-title-height: 30px;
     --process-border-radius: 10px;

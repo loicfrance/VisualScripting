@@ -1,14 +1,87 @@
-@import "process.css";
+@import "fbp/process.css";
+@import "fbp/connections.css";
 @import "sidepanel.css";
+
 
 html, body {
     margin: 0;
     padding: 0;
     height: 100%;
     width: 100%;
-    /*overflow: hidden;*/
+    overflow: hidden;
 }
-.board {
+
+.fbp-ide {
+    --menu-width: 20pt;
+    --menu-padding: 2pt;
+
+    margin: 0;
+    padding: 0;
+    width: 100%;
+    height: 100%;
+
+    display: grid;
+    position: relative;
+    grid-template-areas:
+        "top    top     top    top     top"
+        "l-tabs l-panel editor r-panel r-tabs"
+        "bottom bottom  bottom bottom  bottom";
+    grid-template-rows: var(--menu-width) 1fr var(--menu-width);
+    grid-template-columns: var(--menu-width) min-content 1fr min-content var(--menu-width);
+    user-select: none;
+}
+.fbp-ide :is(*[contenteditable=true], input[type=text]) {
+    user-select: initial;
+}
+.fbp-ide .menu {
+    display: block;
+    list-style-type: none;
+    margin: 0;
+    padding: 0;
+    background-color: var(--menu-background-color);
+    color: #fff;
+    border: 1px solid var(--menu-separator-color);
+}
+.fbp-ide .menu > ul {
+    padding: 0;
+    margin: 0;
+}
+.fbp-ide .menu[position="top"]    { grid-area: top; }
+.fbp-ide .menu[position="left"]   { grid-area: l-tabs; border-width: 0 1px;}
+.fbp-ide .menu[position="right"]  { grid-area: r-tabs; border-width: 0 1px;}
+.fbp-ide .menu[position="bottom"] { grid-area: bottom; }
+.fbp-ide .menu li {
+    display: inline-block;
+}
+.fbp-ide :is(.menu[position="left"], .menu[position="right"]) li {
+    padding: calc(var(--menu-padding)*4) var(--menu-padding);
+}
+.fbp-ide :is(.menu[position="top"], .menu[position="bottom"]) li {
+    padding: var(--menu-padding) calc(var(--menu-padding)*4);
+}
+.fbp-ide .menu li[selected] {
+    background-color: var(--menu-selected-baground);
+}
+.fbp-ide .menu li:not([selected]):hover {
+    background-color: var(--menu-hover-baground);
+}
+.fbp-ide .menu li img {
+    max-height: calc(var(--menu-width) - var(--menu-padding) * 2);
+    max-width: calc(var(--menu-width) - var(--menu-padding) * 2);
+    filter: var(--icon-img-filter);
+}
+.fbp-ide .side-panel[position="left"] { grid-area: l-panel; }
+.fbp-ide .side-panel[position="right"] { grid-area: r-panel; }
+
+.fbp-ide .content {
+    margin: 0;
+    padding: 0;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+}
+
+.editor {
     display: block;
     position: relative;
     overflow: hidden;
@@ -18,68 +91,11 @@ html, body {
     z-index: 0;
     outline: none;
 }
-.top-panel {
-    background: #2b2b2b;
-    margin: 0;
-    position: absolute;
-    top: 0;
-    left: 0;
-    padding: 0 5px;
-}
-.top-panel .menu-button {
-    background: #2b2b2b;
-    border: none;
-    height: 24pt;
-    width: auto;
-    margin: 0;
-    padding: 0;
-    outline: none;
-}
-.top-panel .menu-button:hover {
-    background-color: #3c3f41;
-}
-.processes {
-    display: block;
-    position: absolute;
-    width: 0;
-    height: 0;
-    top: 0;
-    left: 0;
-    z-index: 2;
-}
+
 /******************************************************************************
-*                                 CONNECTIONS                                 *
+*                                 SCROLL BARS                                 *
 ******************************************************************************/
-.connections {
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    z-index: 1;
-    pointer-events: none;
-}
-.connections.selected {
-    z-index: 1;
-    filter: drop-shadow( 0 0 10px white);
-}
-/*
-.connections > defs > marker#marker-connection {
-    viewBox: '0 0 2 2';
-    refX: '1';
-    refY: '1';
-    markerWidth: '3';
-    markerHeight: '3';
-}
-*/
-.connection {
-    stroke-width: 5;
-    fill: transparent;
-    pointer-events: all;
-}
-.connection:hover {
-    stroke-width: 8;
-}
+
 * {
     scrollbar-color: #FFFFFF4E transparent;
     scrollbar-width: thin;

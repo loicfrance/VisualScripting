@@ -4,13 +4,11 @@ import HistoryPile from "../../../jslib/utils/actionsHitory.mod.js";
 import {htmlToElements} from "../../../jslib/utils/tools.mod.js";
 import FbpConnection from "../FBP/FbpConnection.mod.js";
 import FbpProcess from "../FBP/FbpProcess.mod.js";
-import ConnectionDisplay, {ConnectionCreator} from "./ConnectionDisplay.mod.js";
-import ProcessDisplay from "./ProcessDisplay.mod.js";
+import ConnectionDisplay, {ConnectionCreator} from "./fbp/ConnectionDisplay.mod.js";
+import ProcessDisplay from "./fbp/ProcessDisplay.mod.js";
 
 //region private attribute symbols
 const updateTransform = Symbol("update rect update");
-const updateVisibleRect = Symbol("update visible rect");
-const updateBackground = Symbol("update background");
 
 const sheetSym = Symbol("FBP sheet");
 const parentDesignSheetSym = Symbol("Parent Design sheet");
@@ -29,9 +27,8 @@ const selectionSym = Symbol("Elements selection");
 const actionsHistorySym = Symbol("Actions history");
 const connectionCreatorMouseMoveSym = Symbol("Connection creator Mouse move listener");
 
-const visibleRectSym = Symbol("Visible design rectangle");
+const centerSym = Symbol("Visible design rectangle center");
 const zoomFactorSym = Symbol("Zoom factor");
-const backgroundSym = Symbol("Background drawer");
 const resizeListenerSym = Symbol("Div resize listener");
 const transformUpdateRequestSym = Symbol("Transform update request timeout");
 //endregion
@@ -69,9 +66,8 @@ class DesignSheet {
     [currentActionSym];
     [connectionCreatorMouseMoveSym];
 
-    [visibleRectSym] = new Rect(0,0,0,0);
+    [centerSym] = Vec2.zero;
     [zoomFactorSym] = 1;
-    [backgroundSym];
 
     [transformUpdateRequestSym];
 
@@ -156,17 +152,9 @@ class DesignSheet {
         return [...this[connectionDisplaysSym].values()];
     }
 
-    /** @type {Rect} */
-    get visibleRect() { return this[visibleRectSym]; }
-    set visibleRect(rect) {
-        if(!this.htmlDiv)
-            return;
-        this.visibleRect.setRect(rect);
-        this.zoomFactor = Math.min(
-            this.htmlDiv.clientWidth / rect.width,
-            this.htmlDiv.clientHeight / rect.height
-        );
-    }
+    /** @type Vec2 */
+    get center() { return this[centerSym]; }
+    set center(value) { this.center.set(value); }
 
     /** @type number */
     get zoomFactor() { return this[zoomFactorSym]; }
@@ -175,15 +163,20 @@ class DesignSheet {
         this.requestTransformUpdate();
     }
 
+    /** @type Rect */
+    get visibleRect() {
+        const {clientWidth: width, clientHeight: height} = this.htmlDiv;
+        return Rect.createFromCenterWidthHeight(this.center,
+            width/this.zoomFactor, height/this.zoomFactor);
+    }
+    set visibleRect(value) {
+        const {clientWidth: width, clientHeight: height} = this.htmlDiv;
+        this.center = value.center;
+        this.zoomFactor = Math.min(width / value.width, height / value.height);
+    }
+
     /** @type {HTMLDivElement} */
     get htmlDiv() { return this.editor?.htmlDiv; }
-
-    /** @type {DesignBackground} */
-    get background() { return this[backgroundSym]; }
-    set background(value) {
-        this[backgroundSym] = value;
-        this[updateBackground]();
-    }
 
     /** @type HistoryPile */
     get history() { return this[actionsHistorySym]; }
@@ -439,18 +432,24 @@ class DesignSheet {
         }
     }
 
-    moveVisibleRect(delta) {
-        this.visibleRect.move(delta);
+    translateView(delta) {
+        this.center.add(delta);
         this.requestTransformUpdate();
     }
 
-    zoom(factor, origin = this.visibleRect.center) {
-        this.visibleRect.relativeScale(origin, 1/factor);
+    zoom(factor, origin = this.center) {
+        //*
+        if(origin !== this.center) {
+            this.center.remove(origin).mul(1/factor).add(origin);
+        }
+        /*/
+        const rect = this.visibleRect.relativeScale(origin, 1/factor, 1/factor);
+        this.center = rect.center;
+        //*/
         this.zoomFactor *= factor;
     }
 
     requestTransformUpdate() {
-        this[updateVisibleRect]();
         if (!this[transformUpdateRequestSym])
             this[transformUpdateRequestSym] = setTimeout(this[updateTransform]);
     }
@@ -477,18 +476,13 @@ class DesignSheet {
 
     // noinspection JSUnresolvedFunction
     [resizeListenerSym] = new ResizeObserver((evt) => {
+        this.editor?.onViewChange();
         this.requestTransformUpdate();
     });
-
-    [updateVisibleRect]() {
-        const {clientWidth: width, clientHeight: height} = this.htmlDiv;
-        this.visibleRect.setDimensions(width / this.zoomFactor, height / this.zoomFactor);
-    }
 
     [updateTransform] = ()=> {
         if(!this.htmlDiv)
             return;
-        this[updateBackground]();
         const rect = this.visibleRect;
         const viewBox = `${rect.xMin} ${rect.yMin} ${rect.width} ${rect.height}`;
         this[connectionsSvgSym].setAttribute("viewBox", viewBox);
@@ -499,14 +493,6 @@ class DesignSheet {
         this[processesDivSym].style.top  = `calc(50% - ${y}px)`;
         this[processesDivSym].style.transformOrigin = `${x}px ${y}px`;
         this[transformUpdateRequestSym] = undefined;
-    }
-
-    [updateBackground]() {
-        const bg = this.background;
-        if(bg) {
-            const rect = this.visibleRect;
-            bg.updatePosition(-rect.xMin, -rect.yMin, this.zoomFactor);
-        }
     }
 }
 

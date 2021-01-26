@@ -1,0 +1,12 @@
+
+* {
+    --background-color: #2b2b2c;
+    --menu-background-color: #3c3f41;
+    --menu-separator-color: #323232;
+    --menu-selected-baground: #303030;
+    --menu-hover-baground: #363636;
+    color: #FFF;
+    --accent-color: royalblue;
+
+    --icon-img-filter: brightness(0) invert(1) opacity(70%);
+}

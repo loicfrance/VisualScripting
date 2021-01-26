@@ -1,13 +1,13 @@
-import Rect from "../../jslib/geometry2d/Rect.mod.js";
-import Vec2 from "../../jslib/geometry2d/Vec2.mod.js";
-import {KeyMap, MouseButton} from "../../jslib/utils/input.mod.js";
-import {loadString, requestFilesFromUser, textFileUserDownload} from "../../jslib/utils/tools.mod.js";
+import Rect from "../../../jslib/geometry2d/Rect.mod.js";
+import Vec2 from "../../../jslib/geometry2d/Vec2.mod.js";
+import {KeyMap, MouseButton} from "../../../jslib/utils/input.mod.js";
+import {loadString, requestFilesFromUser, textFileUserDownload} from "../../../jslib/utils/tools.mod.js";
 import CameraController from "./CameraController.mod.js";
-import {ConnectionCreator} from "./design/ConnectionDisplay.mod.js";
-import DesignSheet from "./design/DesignSheet.mod.js";
-import {dragListener} from "./design/designUtils.mod.js";
-import PortDisplay from "./design/PortDisplay.mod.js";
-import {FbpSheet} from "./FBP/FbpSheet.mod.js";
+import {ConnectionCreator} from "./fbp/ConnectionDisplay.mod.js";
+import DesignSheet from "./DesignSheet.mod.js";
+import {dragListener} from "./designUtils.mod.js";
+import PortDisplay from "./fbp/PortDisplay.mod.js";
+import {FbpSheet} from "../FBP/FbpSheet.mod.js";
 
 //region private attribute symbols
 const htmlDivSym = Symbol("HTML div");
@@ -20,9 +20,11 @@ const currentActionSym = Symbol("Current action");
 const selectionRectSym = Symbol("Selection SVG rectangle");
 const connectionCreatorSym = Symbol("Connection creator");
 const keyMapSym = Symbol("Keymap");
+const backgroundSym = Symbol("Background drawer");
 
 const addDivListener = Symbol("add listener to main sheet HTML div");
 const removeDivListener = Symbol("remove listener from main sheet HTML div");
+const updateBackground = Symbol("update background");
 
 const showSelectionRect = Symbol("Show selection rectangle");
 const hideSelectionRect = Symbol("Hide selection rectangle");
@@ -44,6 +46,7 @@ class Editor {
     [cameraSym] = new CameraController({
         maxRect: new Rect(-2e3, -2e3, 2e3, 2e3)
     });
+    [backgroundSym];
     [connectionCreatorSym];
 
     [hoveredObjectSym];
@@ -118,6 +121,15 @@ class Editor {
      */
     get camera() { return this[cameraSym]; }
 
+    /** @type DesignBackground */
+    get background() {
+        return this[backgroundSym];
+    }
+    set background(value) {
+        this[backgroundSym] = value;
+        this[updateBackground]();
+    }
+
     get hoveredObject() { return this[hoveredObjectSym]; }
 
 //endregion
@@ -147,7 +159,6 @@ class Editor {
     [keyMapCallback] = (action, evt)=> {
         if(evt.isComposing || evt.target.isContentEditable || evt.defaultPrevented) return;
         const sheet = this.designSheet;
-        const cam = this.camera;
         const visibleRect = sheet.visibleRect;
         const dX = Math.ceil(visibleRect.width/50)*5;
         const dY = Math.ceil(visibleRect.height/50)*5;
@@ -167,17 +178,14 @@ class Editor {
             case "move-up"      : sheet.moveSelected(new Vec2(0,-dY)); break;
             case "move-right"   : sheet.moveSelected(new Vec2(dX,0)); break;
             case "move-down"    : sheet.moveSelected(new Vec2(0,dX)); break;
-            case "zoom-in"      : cam.zoom(cam.zoomInFactor); break;
-            case "zoom-out"     : cam.zoom(cam.zoomOutFactor); break;
-            case "view-left"    : cam.move(new Vec2(-dX,0)); break;
-            case "view-up"      : cam.move(new Vec2(0,-dY)); break;
-            case "view-right"   : cam.move(new Vec2(dX,0)); break;
-            case "view-down"    : cam.move(new Vec2(0,dX)); break;
-            case "view-full"    : sheet.visibleRect = sheet.getFBPBoundingRect(); cam.checkVisibleRect(); break;
-            case "save"         :
-                this.saveSheet(sheet.fbpSheet, "sheet.json");
-                evt.preventDefault();
-                break;
+            case "zoom-in"      : this.zoom(this.camera.zoomInFactor); break;
+            case "zoom-out"     : this.zoom(this.camera.zoomOutFactor); break;
+            case "view-left"    : this.translateView(new Vec2(-dX,0)); break;
+            case "view-up"      : this.translateView(new Vec2(0,-dY)); break;
+            case "view-right"   : this.translateView(new Vec2(dX,0)); break;
+            case "view-down"    : this.translateView(new Vec2(0,dX)); break;
+            case "view-full"    : this.viewFull(); break;
+            case "save"         : this.saveSheet(); evt.preventDefault(); break;
             default : break;
         }
     }
@@ -338,13 +346,48 @@ class Editor {
 
 //endregion
 
+//region camera
+//##############################################################################
+//#                                   CAMERA                                   #
+//##############################################################################
+
+    viewFull() {
+        this.designSheet.visibleRect = this.designSheet.getFBPBoundingRect();
+        this.onViewChange();
+    }
+
+    zoom(factor, origin = this.designSheet.center) {
+        this.designSheet.zoom(factor, origin);
+        this.onViewChange();
+    }
+
+    translateView(delta) {
+        this.designSheet.translateView(delta);
+        this.onViewChange();
+    }
+
+    onViewChange() {
+        this.camera.checkVisibleRect();
+        this[updateBackground]();
+    }
+
+    [updateBackground]() {
+        const bg = this.background;
+        if(bg) {
+            const rect = this.designSheet.visibleRect;
+            //const center = this.designSheet.center;
+            bg.updatePosition(-rect.xMin, -rect.yMin, this.designSheet.zoomFactor);
+        }
+    }
+//endregion
+
 //region general actions
 //##############################################################################
 //#                              GENERAL ACTIONS                               #
 //##############################################################################
 
-    saveSheet(fbpSheet, name="sheet.json") {
-        textFileUserDownload(JSON.stringify(fbpSheet.exportJSON(),
+    saveSheet(name="sheet.json") {
+        textFileUserDownload(JSON.stringify(this.fbpSheet.exportJSON(),
             (key, value) =>
                 (key === "id" && value instanceof Number) ? "#"+value.toString(16)
                     : value

@@ -1,8 +1,8 @@
-import {Vec2} from "../../../jslib/geometry2d/Vec2.mod.js";
-import {MouseButton} from "../../../jslib/utils/input.mod.js";
-import {debug, htmlToElements} from "../../../jslib/utils/tools.mod.js"
-import {FbpConnection} from "../FBP/fbp.mod.js";
-import {DesignActions} from "./DesignSheet.mod.js";
+import {Vec2} from "../../../../jslib/geometry2d/Vec2.mod.js";
+import {MouseButton} from "../../../../jslib/utils/input.mod.js";
+import {debug, htmlToElements} from "../../../../jslib/utils/tools.mod.js"
+import {FbpConnection} from "../../FBP/fbp.mod.js";
+import {DesignActions} from "../DesignSheet.mod.js";
 import PortDisplay from "./PortDisplay.mod.js";
 
 const startPosSym = Symbol();

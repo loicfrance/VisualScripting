@@ -2,7 +2,8 @@ import Vec2 from "../../../jslib/geometry2d/Vec2.mod.js";
 import {KeyMap} from "../../../jslib/utils/input.mod.js";
 import {Settings as SettingsBase} from "../../../jslib/utils/Settings.mod.js";
 import {loadString, requestFilesFromUser} from "../../../jslib/utils/tools.mod.js";
-import Editor from "../Editor.mod.js";
+import SidePanel from "../SidePanel.mod.js";
+import Editor from "./Editor.mod.js";
 import FbpEnvironment from "../FBP/FbpEnvironment.mod.js";
 import {FbpSheet} from "../FBP/FbpSheet.mod.js";
 import DesignSheet from "./DesignSheet.mod.js";
@@ -13,6 +14,13 @@ const clipboardSym = Symbol("clipboard");
 const editorsSym = Symbol("editors");
 const lastFocusedEditorSym = Symbol("last focused editor");
 const keyMapSym = Symbol("Key map");
+
+const environmentDivSym = Symbol("ide html div");
+const leftPanelSym = Symbol("left resizeable panel");
+const rightPanelSym = Symbol("right resizeable panel");
+const mainMenuDivSym = Symbol("main menu html div");
+const leftTabsDivSym = Symbol("left tabs html div");
+const bottomTabsDivSym = Symbol("bottom tabs html div");
 
 const keyMapCallback = Symbol("keymap callback");
 
@@ -34,8 +42,21 @@ class DesignEnvironment extends FbpEnvironment {
     [lastFocusedEditorSym];
     [keyMapSym];
 
+    [environmentDivSym];
+    [leftPanelSym];
+    [rightPanelSym];
+    [mainMenuDivSym];
+    [leftTabsDivSym];
+    [bottomTabsDivSym];
+
     constructor(environmentDiv) {
         super();
+        this[environmentDivSym] = environmentDiv;
+        const mainMenuDiv = environmentDiv.querySelector('.main-menu');
+        const LeftPanel = new SidePanel(environmentDiv.querySelector('.side-panel[position="left"]'), 'left');
+        const rightPanel = new SidePanel(environmentDiv.querySelector('.side-panel[position="right"]'), 'right');
+        const leftTabsDiv = environmentDiv.querySelector('.tabs.left');
+        const bottomTabsDiv = environmentDiv.querySelector('.tabs.left');
     }
 
 //##############################################################################
@@ -83,7 +104,7 @@ class DesignEnvironment extends FbpEnvironment {
             }
         }
         if(!this.focusedEditor) {
-            const editor = new Editor(document.getElementsByClassName("board")[0]);
+            const editor = new Editor(this[environmentDivSym].querySelector(".board"));
             this[editorsSym].push(editor);
             this[lastFocusedEditorSym] = editor;
         }
@@ -93,7 +114,6 @@ class DesignEnvironment extends FbpEnvironment {
 //##############################################################################
 //#                             KEYBOARD SHORTCUTS                             #
 //##############################################################################
-
     enableKeyboardShortcuts() {
         if(!this[keyMapSym])
             this[keyMapSym] = new KeyMap({callback: this[keyMapCallback]});
@@ -111,18 +131,16 @@ class DesignEnvironment extends FbpEnvironment {
     [keyMapCallback] = (action, evt)=> {
         if(evt.isComposing || evt.target.isContentEditable || evt.defaultPrevented) return;
         switch(action) {
-            case "cancel"       :
+            case "cancel":
                 //TODO
                 break;
-            case "undo"         : break;
-            case "redo"         : break;
-            case "copy"         : break;
-            case "paste"        : break;
-            case "cut"          : break;
-            case "save"         :
-                break;
-            case "open"         :
-                // noinspection JSIgnoredPromiseFromCall
+            case "undo"  : break;
+            case "redo"  : break;
+            case "copy"  : break;
+            case "paste" : break;
+            case "cut"   : break;
+            case "save"  : break;
+            case "open"  :
                 requestFilesFromUser({multiple:false, accept: "text/json"})
                     .then(async files=>{
                         if(files.length !== 1)

@@ -1,9 +1,9 @@
-import {MouseButton} from "../../../jslib/utils/input.mod.js";
-import {htmlToElements} from "../../../jslib/utils/tools.mod.js";
-import {FbpPort} from "../FBP/fbp.mod.js";
-import {FbpObjectChangeReason} from "../FBP/FbpObject.mod.js";
-import {FbpPortChangeReason} from "../FBP/FbpPort.mod.js";
-import {editorListener} from "./designUtils.mod.js";
+import {MouseButton} from "../../../../jslib/utils/input.mod.js";
+import {htmlToElements} from "../../../../jslib/utils/tools.mod.js";
+import {FbpPort} from "../../FBP/fbp.mod.js";
+import {FbpObjectChangeReason} from "../../FBP/FbpObject.mod.js";
+import {FbpPortChangeReason} from "../../FBP/FbpPort.mod.js";
+import {editorListener} from "../designUtils.mod.js";
 
 const [portTemplate, playIconTemplate] = htmlToElements(`
 <li class="port">

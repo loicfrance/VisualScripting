@@ -1,34 +1,35 @@
 import {dragListener} from "./design/designUtils.mod.js";
 
 class SidePanel {
-    constructor(div) {
+    constructor(div, direction) {
         this.panel = div;
-        this.panelTitle = this.panel.querySelector('.title')
+        this.panelTitle = this.panel.querySelector('.title');
         this.contentDiv = this.panel.querySelector('.content');
         this.resizer = this.panel.querySelector('.resizer');
+        this.direction = direction;
         {
             let initialDx = 0;
             let disableClick = false;
             const mouseDown = dragListener.bind(this, {
                 onStart: (evt, pos)=> {
-                    initialDx = this.panel.classList.contains('left') ?
+                    initialDx = (direction === 'left') ?
                                     pos.x - this.panel.getBoundingClientRect().right
                                 :   pos.x - this.panel.getBoundingClientRect().left;
                     disableClick = false;
                 },
                 onMove : (evt, pos)=> {
                     const boundingRect = this.panel.getBoundingClientRect();
-                    const dW = this.panel.classList.contains('left') ?
+                    const dW = (direction === 'left') ?
                                     pos.x - boundingRect.right - initialDx
                                 :   boundingRect.left + initialDx - pos.x;
-                    if(dW !== 0)
+                    if (dW !== 0)
                         disableClick = true;
 
                     const w = Math.max(0, this.panel.offsetWidth + dW);
-                    if(w >= 10) {
+                    if (w >= 10) {
                         this.panel.style.width = w + 'px';
                     }
-                    if(this.isOpen()) {
+                    if (this.isOpen()) {
                         if (w < 10) this.close();
                     } else if(w >= 10) this.open();
 

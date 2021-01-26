@@ -4,17 +4,17 @@ import {debug, loadString, merge, requestFilesFromUser, textFileUserDownload} fr
 import DesignBackground from "./design/DesignBackground.mod.js";
 import DesignEnvironment from "./design/DesignEnvironment.mod.js";
 import DesignSheet from "./design/DesignSheet.mod.js";
-import Editor from "./Editor.mod.js";
+import Editor from "./design/Editor.mod.js";
 import {FbpPortDirection, FbpProcess} from "./FBP/fbp.mod.js";
 import SidePanel from "./SidePanel.mod.js";
 
 async function main() {
     debug.enableTags("VS-debug");
-    const env = new DesignEnvironment();
+    const env = new DesignEnvironment(document.getElementsByClassName("fbp-ide")[0]);
     window.fbpEnv = env;
     env.libLoader.addRootUrl("/VisualScripting/assets/process-libraries/")
+        // import fbp libs
         .then(async () => {
-            // noinspection ES6MissingAwait
             env.importTypes("core/base-types");
             env.libLoader.loadHandler("core/variable");
             env.libLoader.loadHandler("core/node");
@@ -23,6 +23,7 @@ async function main() {
             env.libLoader.loadHandler("web-debug/alert");
             await env.libLoader.finishLoadings();
         })
+        //create initial processes
         .then(()=>{
             const trigger = fbpSheet.createProcess({name: "trigger",
                 handler: "core/node", parameters: {
@@ -52,18 +53,22 @@ async function main() {
             trigger.getOutputPort(1).connect(rand_vars[1].getInputPort(0));
             trigger.getOutputPort(2).connect(rand_vars[2].getInputPort(0));
 
-            const product = fbpSheet.createProcess({name:"product",
-                handler: "math/op2", parameters: {
-                    op:"multiply", in1_type: "float", in2_type: "float"
-                }, position: new Vec2(0,-50)});
+            const [product, sum] = fbpSheet.createProcesses(
+                {
+                    name:"product",
+                    handler: "math/op2", parameters: {
+                        op:"multiply", in1_type: "float", in2_type: "float"
+                    }, position: new Vec2(0,-50)
+                }, {
+                    name:"sum",
+                    handler:  "math/op2", parameters: {
+                        op:"plus", in1_type: "float", in2_type: "float"
+                    }, position: new Vec2(0,50)
+                });
 
             rand_vars[0].getOutputPort(0).connect(product.getInputPort(0));
             rand_vars[1].getOutputPort(0).connect(product.getInputPort(1));
 
-            const sum = fbpSheet.createProcess({name:"sum",
-                handler:  "math/op2", parameters: {
-                    op:"plus", in1_type: "float", in2_type: "float"
-                }, position: new Vec2(0,50)});
             product.getOutputPort(0).connect(sum.getInputPort(0));
             rand_vars[2].getOutputPort(0).connect(sum.getInputPort(1));
 
@@ -77,11 +82,10 @@ async function main() {
             sum.getOutputPort(0).connect(alertProc.getInputPort(1));
         });
 
-    const fbpSheet = env.createSheet("sheet 0");
-    env.editSheet(fbpSheet);
+    const fbpSheet = env.createSheet("sheet 0", true);
     env.enableKeyboardShortcuts();
     const editor = env.focusedEditor;
-    editor.designSheet.background = new DesignBackground(editor.htmlDiv, {});
+    editor.background = new DesignBackground(editor.htmlDiv, {});
     editor.enableKeyboardShortcuts();
     loadString("assets/shortcuts.json")
         .then(JSON.parse)
@@ -95,10 +99,6 @@ async function main() {
             editor.setKeyboardShortcuts(new Map(Object.entries(editorMapping)));
             env   .setKeyboardShortcuts(new Map(Object.entries(envMapping   )));
         });
-    //designSheet.requestCameraControl();
-
-    const infoPanel = new SidePanel(document.getElementById("info-panel"));
-    //const optionsPanel = new SidePanel(document.getElementById("options-panel"));
     const saveBtn = document.getElementById("save-sheet");
     const openBtn = document.getElementById("open-sheet");
 
