@@ -55,9 +55,11 @@ html, body {
 }
 .fbp-ide :is(.menu[position="left"], .menu[position="right"]) li {
     padding: calc(var(--menu-padding)*4) var(--menu-padding);
+    width: calc(100% - 2*var(--menu-padding));
 }
 .fbp-ide :is(.menu[position="top"], .menu[position="bottom"]) li {
     padding: var(--menu-padding) calc(var(--menu-padding)*4);
+    height: calc(100% - 2*var(--menu-padding));
 }
 .fbp-ide .menu li[selected] {
     background-color: var(--menu-selected-baground);
@@ -79,6 +81,7 @@ html, body {
     width: 100%;
     height: 100%;
     overflow: hidden;
+    grid-area: editor;
 }
 
 .editor {

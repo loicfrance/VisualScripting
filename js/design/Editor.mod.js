@@ -8,6 +8,7 @@ import DesignSheet from "./DesignSheet.mod.js";
 import {dragListener} from "./designUtils.mod.js";
 import PortDisplay from "./fbp/PortDisplay.mod.js";
 import {FbpSheet} from "../FBP/FbpSheet.mod.js";
+import {createElement} from "../../../jslib/utils/createHtml.mod.js";
 
 //region private attribute symbols
 const htmlDivSym = Symbol("HTML div");
@@ -56,8 +57,8 @@ class Editor {
 //#                                CONSTRUCTOR                                 #
 //##############################################################################
 
-    constructor(htmlDiv, config = {}) {
-        this.htmlDiv = htmlDiv;
+    constructor(config = {}) {
+        this.htmlDiv = createElement("div", {class: "editor", tabindex: "-1"});
         this.camera.editor = this;
         const {camera = true, userMove = true, userEdit = true, shortKeys = true} = config;
         if (camera) {

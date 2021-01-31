@@ -7,6 +7,7 @@ import Editor from "./Editor.mod.js";
 import FbpEnvironment from "../FBP/FbpEnvironment.mod.js";
 import {FbpSheet} from "../FBP/FbpSheet.mod.js";
 import DesignSheet from "./DesignSheet.mod.js";
+import {createElement, createStyleSheet, htmlToElements} from "../../../jslib/utils/createHtml.mod.js";
 
 
 const settingsSym = Symbol("Settings");
@@ -16,13 +17,18 @@ const lastFocusedEditorSym = Symbol("last focused editor");
 const keyMapSym = Symbol("Key map");
 
 const environmentDivSym = Symbol("ide html div");
+const themeCssSym = Symbol("theme stylesheet html link");
 const leftPanelSym = Symbol("left resizeable panel");
 const rightPanelSym = Symbol("right resizeable panel");
-const mainMenuDivSym = Symbol("main menu html div");
-const leftTabsDivSym = Symbol("left tabs html div");
-const bottomTabsDivSym = Symbol("bottom tabs html div");
+const topMenuUlSym = Symbol("main menu html div");
+const leftMenuUlSym = Symbol("left menu html div");
+const rightMenuUlSym = Symbol("right menu html div");
+const bottomMenuUlSym = Symbol("bottom menu html div");
+const contentDivSym = Symbol("content html div");
 
 const keyMapCallback = Symbol("keymap callback");
+
+const icons_dir = "assets/icons/";
 
 class Settings extends SettingsBase {
     static LANGUAGE = "lang";
@@ -43,20 +49,48 @@ class DesignEnvironment extends FbpEnvironment {
     [keyMapSym];
 
     [environmentDivSym];
-    [leftPanelSym];
-    [rightPanelSym];
-    [mainMenuDivSym];
-    [leftTabsDivSym];
-    [bottomTabsDivSym];
+    [themeCssSym] = createStyleSheet("css/themes/dark.css");
+    [leftPanelSym] = new SidePanel('left');
+    [rightPanelSym] = new SidePanel( 'right');
 
+    [topMenuUlSym] = createElement("ul",
+        {class: "menu", position: "top"});
+    [leftMenuUlSym] = createElement("ul",
+        {class: "menu", position: "left"});
+    [rightMenuUlSym] = createElement("ul",
+        {class: "menu", position: "right"});
+    [bottomMenuUlSym] = createElement("ul",
+        {class: "menu", position: "bottom"});
+    [contentDivSym] = createElement("div",
+        {class: "content"});
+
+    /**
+     *
+     * @param {HTMLDivElement} environmentDiv
+     */
     constructor(environmentDiv) {
         super();
         this[environmentDivSym] = environmentDiv;
-        const mainMenuDiv = environmentDiv.querySelector('.main-menu');
-        const LeftPanel = new SidePanel(environmentDiv.querySelector('.side-panel[position="left"]'), 'left');
-        const rightPanel = new SidePanel(environmentDiv.querySelector('.side-panel[position="right"]'), 'right');
-        const leftTabsDiv = environmentDiv.querySelector('.tabs.left');
-        const bottomTabsDiv = environmentDiv.querySelector('.tabs.left');
+        environmentDiv.append(
+            createStyleSheet("css/stylesheet.css"),
+            this[themeCssSym],
+            this.topMenuUl, this.leftMenuUl,
+            this.rightMenuUl, this.bottomMenuUl,
+            this.leftPanel.panelDiv,
+            this.rightPanel.panelDiv,
+            this.contentDiv);
+
+        this.topMenuUl.append(
+            createElement('li', {title: "Files"}, "Files"),
+            createElement('li', {title: "Edit"}, "Edit"),
+            createElement('li', {title: "View"}, "View"),
+            createElement('li', {title: "Tools"}, "Tools")
+        );
+        this.addLeftTab('Project', "assets/icons/icon_process.svg");
+        this.addLeftTab('Libraries', "assets/icons/icon_libraries.svg");
+        this.addRightTab('Info', "assets/icons/icon_information.svg");
+        this.addBottomTab('Problems');
+        this.addBottomTab('Console');
     }
 
 //##############################################################################
@@ -67,6 +101,42 @@ class DesignEnvironment extends FbpEnvironment {
 
     get settings() {
         return this[settingsSym];
+    }
+
+//##############################################################################
+//#                                   MENUS                                    #
+//##############################################################################
+
+    get topMenuUl() { return this[topMenuUlSym]; }
+    get leftMenuUl() { return this[leftMenuUlSym]; }
+    get rightMenuUl() { return this[rightMenuUlSym]; }
+    get bottomMenuUl() { return this[bottomMenuUlSym]; }
+
+    get leftPanel() { return this[leftPanelSym]; }
+    get rightPanel() { return this[rightPanelSym]; }
+
+    get contentDiv() { return this[contentDivSym]; }
+
+    addTab(position, name, icon) {
+        let ul = undefined;
+        switch(position) {
+            case 'left' : ul = this.leftMenuUl; break;
+            case 'right': ul = this.rightMenuUl; break;
+            case 'bottom': ul = this.bottomMenuUl; break;
+            default: throw Error(`illegal position ${position}`);
+        }
+        ul.appendChild(createElement('li', {title: name},
+                icon ? createElement('img', {src: icon}) : name));
+    }
+
+    addLeftTab(name, icon) {
+        this.addTab('left', name, icon);
+    }
+    addRightTab(name, icon) {
+        this.addTab('right', name, icon);
+    }
+    addBottomTab(name, icon) {
+        this.addTab('bottom', name, icon);
     }
 
 //##############################################################################
@@ -104,7 +174,9 @@ class DesignEnvironment extends FbpEnvironment {
             }
         }
         if(!this.focusedEditor) {
-            const editor = new Editor(this[environmentDivSym].querySelector(".board"));
+            const editor = new Editor();
+            if(this.contentDiv.childElementCount === 0)
+                this.contentDiv.appendChild(editor.htmlDiv);
             this[editorsSym].push(editor);
             this[lastFocusedEditorSym] = editor;
         }
@@ -146,7 +218,8 @@ class DesignEnvironment extends FbpEnvironment {
                         if(files.length !== 1)
                             return;
                         const sheet = this.createSheet(files[0].name, true);
-                        return sheet.importJSON(await files[0].text());
+                        await sheet.importJSON(await files[0].text());
+                        this.editSheet(sheet);
                     });
                 evt.preventDefault();
                 evt.stopPropagation();

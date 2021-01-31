@@ -1,7 +1,7 @@
 import Rect from "../../../jslib/geometry2d/Rect.mod.js";
 import Vec2 from "../../../jslib/geometry2d/Vec2.mod.js";
 import HistoryPile from "../../../jslib/utils/actionsHitory.mod.js";
-import {htmlToElements} from "../../../jslib/utils/tools.mod.js";
+import {htmlToElements} from "../../../jslib/utils/createHtml.mod.js";
 import FbpConnection from "../FBP/FbpConnection.mod.js";
 import FbpProcess from "../FBP/FbpProcess.mod.js";
 import ConnectionDisplay, {ConnectionCreator} from "./fbp/ConnectionDisplay.mod.js";

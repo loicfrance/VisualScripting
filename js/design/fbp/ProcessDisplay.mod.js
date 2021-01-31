@@ -1,7 +1,7 @@
 import {Rect} from "../../../../jslib/geometry2d/Rect.mod.js";
 import {Vec2} from "../../../../jslib/geometry2d/Vec2.mod.js";
 import {hexToRGBA, luminance} from "../../../../jslib/utils/colors.mod.js";
-import {htmlToElements} from "../../../../jslib/utils/tools.mod.js";
+import {htmlToElements} from "../../../../jslib/utils/createHtml.mod.js";
 import FbpPort, {FbpPortDirection as PORT_DIR} from "../../FBP/FbpPort.mod.js";
 import {FbpProcessChangeReason as ChangeReason} from "../../FBP/FbpProcess.mod.js";
 import PortDisplay from "./PortDisplay.mod.js";
